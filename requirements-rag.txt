@@ -1,0 +1,46 @@
+# =============================================================================
+# RAG 管线依赖（rag_plan_v2.md / 本仓库 build_index、query_rag、eval 等）
+# -----------------------------------------------------------------------------
+# 建议环境：Python 3.10+（3.11 亦可）
+# 云服务器 CPU 推理：直接 pip install -r requirements-rag.txt
+# 若需 GPU 加速 PyTorch / 向量化：请先到 https://pytorch.org 选择对应 CUDA 版本安装 torch，
+#   再安装本文件其余依赖（避免 pip 默认装错 CUDA 轮子）。
+# pytorch >= 2.5 docling要求
+# =============================================================================
+
+# ----- MinerU PDF→TXT 脚本（mineru_to_pdf.py）可选 -----
+# llama-index-readers-mineru / mineru-open-sdk / tqdm
+tqdm>=4.66.0
+
+# ----- 数据处理 -----
+pandas>=2.0,<3
+numpy>=1.24,<3
+
+# ----- 中文 BM25 -----
+rank-bm25>=0.2.2
+jieba>=0.42
+
+# ----- 向量库 -----
+qdrant-client>=1.7.0,<2
+
+# ----- Embedding（BGE / SentenceTransformer）-----
+# sentence-transformers 会拉取 transformers、torch 等；下面显式写出便于云环境排查版本
+sentence-transformers>=2.6.0,<6
+transformers>=4.41.0,<6
+huggingface-hub>=0.23.0
+tokenizers>=0.13.0
+safetensors>=0.4.0
+torch>=2.0.0
+# sklearn / scipy：sentence-transformers 训练式推理常用，显式列出避免环境过旧缺失
+scikit-learn>=1.3.0
+scipy>=1.10.0
+
+# ----- OpenAI 兼容 API（DashScope / 自建 vLLM 等）-----
+openai>=1.30.0,<3
+httpx>=0.25.0,<1
+
+# ----- 阿里云百炼 Rerank / 其它 DashScope -----
+dashscope>=1.14.0
+
+# ----- 环境变量加载（可选，本地 .env）-----
+python-dotenv>=1.0.0

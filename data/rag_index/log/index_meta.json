@@ -1,0 +1,4 @@
+{
+  "qdrant_collection": "device_rag_log",
+  "source": "log"
+}

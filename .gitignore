@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+
+# 本地模型与向量库（体积大，请自行下载或 build_index 重建）
+models/
+data/qdrant_storage/
+
+# 可选大数据（需要时本地放置，不纳入版本库）
+data/duty_log.csv
+data/duty_log_history.csv
+data/device_maintenance_data.csv
+data/manual_pdf/
+
+# 运行时/缓存
+storage/
+*.log
+data/qdrant.log
+/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 评测报告可按需保留；默认忽略大批量历史报告
+# data/eval/reports/

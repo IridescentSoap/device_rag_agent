@@ -1,0 +1,4 @@
+{
+  "qdrant_collection": "device_rag_manual",
+  "source": "manual"
+}

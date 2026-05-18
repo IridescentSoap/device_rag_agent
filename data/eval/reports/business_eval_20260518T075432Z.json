@@ -1,0 +1,553 @@
+{
+  "eval_file": "/root/autodl-tmp/device_rag_llm/data/eval/business_eval_30.jsonl",
+  "timestamp": "20260518T075432Z",
+  "retrieval": {
+    "n": 30,
+    "recall": {
+      "@1": 0.4666666666666667,
+      "@3": 0.7333333333333333,
+      "@5": 0.7333333333333333,
+      "@10": 0.7666666666666667
+    },
+    "mrr": 0.6000000000000001,
+    "route_accuracy": 0.8666666666666667,
+    "by_expected_source": {
+      "manual": {
+        "n": 15,
+        "recall@5": 1.0,
+        "mrr": 0.8333333333333334,
+        "route_accuracy": 1.0
+      },
+      "log": {
+        "n": 15,
+        "recall@5": 0.4666666666666667,
+        "mrr": 0.36666666666666664,
+        "route_accuracy": 0.7333333333333333
+      }
+    }
+  },
+  "retrieval_items": [
+    {
+      "id": "biz_m01",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m02",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m03",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m04",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m05",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m06",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m07",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m08",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m09",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m10",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m11",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m12",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m13",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m14",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m15",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l01",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": false,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l02",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "balanced",
+      "route_match": false,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.3333333333333333,
+      "gold_in_topk": 3
+    },
+    {
+      "id": "biz_l03",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l04",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_l05",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l06",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_l07",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l08",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l09",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l10",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": false,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 1.0
+      },
+      "mrr": 0.16666666666666666,
+      "gold_in_topk": 6
+    },
+    {
+      "id": "biz_l11",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l12",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l13",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l14",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "balanced",
+      "route_match": false,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l15",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    }
+  ],
+  "e2e": {
+    "n": 8,
+    "citation_recall": 1.0,
+    "mean_keyword_coverage": 1.0,
+    "route_accuracy": 0.875
+  },
+  "e2e_items": [
+    {
+      "id": "biz_l06",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "1) 现象与影响   北坪西雷达 FER AUX 路（案例中均为 A 路）出现“log saturation”告警，伴随 FER AUX 路状态变红；当前无业务影响（impact=无）。  2) 原因分析   已确认原因（基于重复验证的对调实验）：   - 对数检测模块故障（case_08874）：对调两路对数检测模块后，告警现象随之转移，更换该模块后恢复正常；   - 对数放大器故障（case_00006）：同样通过对调对数放大器实现故障转移，确认为该器件问题。    二者均属于 FER AUX 路接收通道前端信号处理环节（对数域），其饱和输出直接触发"
+    },
+    {
+      "id": "biz_m04",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "1) **系统对雷达报文校验失败或缺少关键数据项的处理方式是：直接丢弃该报文，不参与后续航迹生成与融合。**  2) **依据说明如下：**   - **校验失败情形**（如长度错误、FSPEC长度错误、ASTERIX格式错误等）：手册明确指出，“系统会对雷达报文进行严格校验”，一旦出现上述格式类错误，“系统丢弃处理”（见 chunk_id=自动化系统技术手册#00031 第2.1.1.3节第1条）。   - **缺少关键数据项情形**：包括但不限于：     - CAT001/CAT048 缺少雷达扫描类型（I020数据项）；     - 航迹数据缺少"
+    },
+    {
+      "id": "biz_m01",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "自动化系统支持接入的 ADS-B 数据格式为 **ASTERIX 格式**，具体包括以下两类报文标准及其版本：  1. **ASTERIX CAT021（ADS-B 消息）**      - 支持版本：**V0.23、V0.26、V1.4、V2.1、V2.4**      - 依据标准：*ASTERIX - ADS-B Messages (Part 12) p12ed023*  2. **ASTERIX CAT023（CNS/ATM 地面站及服务状态报告）**      - 支持版本：**V1.2**      - 依据标准：*ASTERIX CNS/A"
+    },
+    {
+      "id": "biz_l09",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "1) 现象与影响   REC-A机发生自动退出，但REC-B机运行正常，未对管制指挥造成实际影响（case_00029、case_10280）。  2) 原因分析   根据两起相同现象的运维案例（case_00029、case_10280），原因均明确归因为**软件问题**；该类问题未伴随硬件告警或双机同步异常，且无自动恢复记录（区别于MST A机案例中“1分钟后自动恢复”），表明REC-A机不具备自愈能力，需人工干预。  3) 处置建议   立即执行**重启REC-A机**操作。该处置方式已在历史案例中两次成功应用（case_00029、case_10"
+    },
+    {
+      "id": "biz_m09",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "中期冲突探测（MTCA / MTCD）与中期冲突抑制相关功能在《自动化系统技术手册》中有明确说明，主要涵盖**探测逻辑、区域配置、参数设置、抑制机制、冲突解脱判断及系统集成**等方面。具体说明如下：  ---  ### 一、中期冲突探测（MTCA）功能说明  #### 1. **核心定义与定位**   - 中期冲突探测（Medium Term Conflict Detection, MTCD）是安全告警子系统的关键功能，用于预测未来一段时间内航空器之间可能发生的水平与垂直间隔不足事件（即潜在冲突）。   - 对应手册章节：**2.3.25 中期冲突探测告"
+    },
+    {
+      "id": "biz_m08",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "FDP 降级功能在手册中位于**飞行数据处理（FDP）相关功能说明**类别下，具体归类为 **“2.2 航空器飞行数据处理功能”** 的子项之一。  依据说明：   - 手册目录结构显示，“2.2.14. FDP 降级功能”紧接在“2.2.13. 进、离港程序”之后、“2.2.15. 一些标记的判断”之前，属于第2.2节“航空器飞行数据处理功能”的连续编号序列（2.2.x）；   - 内容上，该功能描述聚焦于FDP子系统失效时的本地飞行计划处理能力、相关保持、移交支持、CFL输入等，均围绕**飞行计划数据的持续可用性与基本处理能力**展开，是FDP核心功"
+    },
+    {
+      "id": "biz_l10",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": false,
+      "answer_preview": "1) **恢复方法**：针对主用内话系统 D3PLC 席位 PTT 故障，应更换 PTT 控制器（或 PTT 脚踏装置），更换后测试确认功能正常即可恢复。  2) **依据说明**：   - 多起同类故障案例（case_02159、case_04680、case_08217、case_00027）均明确指出 D3PLC 或同属 FRQ 系列主用内话系统中席位 PTT 故障原因为**硬件故障**（包括控制器损坏、脚踏磨损等），处置方式统一为“**更换PTT控制器/PTT后恢复**”或“**更换PTT后测试正常**”。   - case_08968 为特例（"
+    },
+    {
+      "id": "biz_m05",
+      "citation_hit": true,
+      "context_gold_in_citations": true,
+      "keyword_coverage": 1.0,
+      "route_match": true,
+      "answer_preview": "DEP 报匹配计划时需同时满足以下**全部条件**：  ---  ### 一、前提条件（报文有效性与关心判断） 1. **DEP 报为本管制区“关心的”报文**，满足以下任一条件：      - 起飞机场在本管制区内；      - 目的机场在本管制区内；      - 系统内部存在航班号相同、且起飞机场或目的机场之一相同的计划（即已有相关计划）。      （依据：`#00077`, `#00078`）  2. **关键字段完整且格式正确**：      - 航班号、起飞机场、目的机场、实际起飞时间（ATD）均不能为空或格式错误；      - 实际起"
+    }
+  ]
+}

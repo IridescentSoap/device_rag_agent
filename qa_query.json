@@ -1,0 +1,33 @@
+[
+  {
+    "id": "QA_001",
+    "category": "manual_procedure",
+    "query": "XX型号雷达在进行定检时，备机电压的正常波动范围是多少？",
+    "ground_truth_answer": "根据《XX雷达维护手册》，备机电压正常波动范围应在 210V 至 230V 之间。超过 240V 需检查稳压器输出。",
+    "expected_context": [
+      {
+        "source_type": "manual",
+        "doc_id": "manual_radar_v2",
+        "reference_id": "chunk_452",
+        "chapter_path": "第三章/第二节/定检参数",
+        "page_number": 128
+      }
+    ],
+    "difficulty": "easy"
+  },
+  {
+    "id": "QA_002",
+    "category": "log_case",
+    "query": "雷达屏幕频繁出现雪花干扰点，历史上有类似的处置记录吗？",
+    "ground_truth_answer": "历史上曾有 3 次类似案例（ID: case_889, case_1021, case_1105），主要原因是馈线接头老化，处置措施均为更换接头并重新校准。",
+    "expected_context": [
+      {
+        "source_type": "log",
+        "reference_id": "case_889",
+        "phenomenon": "屏幕雪花干扰",
+        "action": "更换馈线接头"
+      }
+    ],
+    "difficulty": "medium"
+  }
+]

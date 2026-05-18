@@ -1,0 +1,481 @@
+{
+  "eval_file": "/root/autodl-tmp/device_rag_llm/data/eval/business_eval_30.jsonl",
+  "timestamp": "20260518T082024Z",
+  "retrieval": {
+    "n": 30,
+    "recall": {
+      "@1": 0.4666666666666667,
+      "@3": 0.8666666666666667,
+      "@5": 0.8666666666666667,
+      "@10": 0.9333333333333333
+    },
+    "mrr": 0.6492063492063491,
+    "route_accuracy": 0.9,
+    "by_expected_source": {
+      "manual": {
+        "n": 15,
+        "recall@5": 1.0,
+        "mrr": 0.8333333333333334,
+        "route_accuracy": 0.9333333333333333
+      },
+      "log": {
+        "n": 15,
+        "recall@5": 0.7333333333333333,
+        "mrr": 0.4650793650793651,
+        "route_accuracy": 0.8666666666666667
+      }
+    }
+  },
+  "retrieval_items": [
+    {
+      "id": "biz_m01",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m02",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m03",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m04",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m05",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m06",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m07",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m08",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m09",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m10",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m11",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "balanced",
+      "route_match": false,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m12",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m13",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_m14",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_m15",
+      "expected_source": "manual",
+      "expected_route": "manual_heavy",
+      "predicted_route": "manual_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l01",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l02",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "balanced",
+      "route_match": false,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.3333333333333333,
+      "gold_in_topk": 3
+    },
+    {
+      "id": "biz_l03",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.3333333333333333,
+      "gold_in_topk": 3
+    },
+    {
+      "id": "biz_l04",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_l05",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l06",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.5,
+      "gold_in_topk": 2
+    },
+    {
+      "id": "biz_l07",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    },
+    {
+      "id": "biz_l08",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.3333333333333333,
+      "gold_in_topk": 3
+    },
+    {
+      "id": "biz_l09",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l10",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 1.0
+      },
+      "mrr": 0.14285714285714285,
+      "gold_in_topk": 7
+    },
+    {
+      "id": "biz_l11",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 1.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 1.0,
+      "gold_in_topk": 1
+    },
+    {
+      "id": "biz_l12",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.3333333333333333,
+      "gold_in_topk": 3
+    },
+    {
+      "id": "biz_l13",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 1.0,
+        "5": 1.0,
+        "10": 1.0
+      },
+      "mrr": 0.3333333333333333,
+      "gold_in_topk": 3
+    },
+    {
+      "id": "biz_l14",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "balanced",
+      "route_match": false,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 1.0
+      },
+      "mrr": 0.16666666666666666,
+      "gold_in_topk": 6
+    },
+    {
+      "id": "biz_l15",
+      "expected_source": "log",
+      "expected_route": "log_heavy",
+      "predicted_route": "log_heavy",
+      "route_match": true,
+      "recall_at": {
+        "1": 0.0,
+        "3": 0.0,
+        "5": 0.0,
+        "10": 0.0
+      },
+      "mrr": 0.0,
+      "gold_in_topk": null
+    }
+  ]
+}
