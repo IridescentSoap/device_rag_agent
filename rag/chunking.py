@@ -6,37 +6,10 @@ import re
 from pathlib import Path
 
 from rag.schemas import ChunkRecord
+from rag.text_utils import split_oversized, strip_header_footer_noise
 
-
-_HEADER_NOISE = re.compile(
-    r"(版权所有|Copyright|第\s*\d+\s*页|共\s*\d+\s*页)",
-    re.IGNORECASE,
-)
-
-
-def strip_header_footer_noise(text: str) -> str:
-    lines = []
-    for line in text.splitlines():
-        if _HEADER_NOISE.search(line):
-            continue
-        lines.append(line)
-    return "\n".join(lines)
-
-
-def _split_oversized(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
-    if len(text) <= chunk_size:
-        return [text] if text.strip() else []
-    out: list[str] = []
-    start = 0
-    while start < len(text):
-        end = min(start + chunk_size, len(text))
-        piece = text[start:end].strip()
-        if piece:
-            out.append(piece)
-        if end >= len(text):
-            break
-        start = max(end - chunk_overlap, start + 1)
-    return out
+# 兼容旧引用
+_split_oversized = split_oversized
 
 
 def chunk_manual_text(
@@ -62,14 +35,14 @@ def chunk_manual_text(
             buf = (buf + "\n\n" + p).strip() if buf else p
         else:
             if buf:
-                pieces.extend(_split_oversized(buf, chunk_size, chunk_overlap))
+                pieces.extend(split_oversized(buf, chunk_size, chunk_overlap))
             if len(p) <= chunk_size:
                 buf = p
             else:
-                pieces.extend(_split_oversized(p, chunk_size, chunk_overlap))
+                pieces.extend(split_oversized(p, chunk_size, chunk_overlap))
                 buf = ""
     if buf:
-        pieces.extend(_split_oversized(buf, chunk_size, chunk_overlap))
+        pieces.extend(split_oversized(buf, chunk_size, chunk_overlap))
 
     records: list[ChunkRecord] = []
     for i, t in enumerate(pieces):
@@ -92,9 +65,31 @@ def chunk_manual_text(
     return records
 
 
-def load_manual_from_plain_file(path: Path, doc_id: str | None = None, **kwargs) -> list[ChunkRecord]:
+def load_manual_from_plain_file(
+    path: Path,
+    doc_id: str | None = None,
+    *,
+    structured: bool | None = None,
+    **kwargs,
+) -> list[ChunkRecord] | ManualChunkBundle:
+    from rag import config
+
     text = path.read_text(encoding="utf-8", errors="replace")
     did = doc_id or path.stem
+    use_structured = (
+        config.MANUAL_STRUCTURED_CHUNKING if structured is None else structured
+    )
+    if use_structured:
+        from rag.structured_chunking import chunk_manual_text_structured
+        filter_toc = kwargs.pop("filter_toc", config.MANUAL_FILTER_TOC)
+        return chunk_manual_text_structured(
+            text,
+            doc_id=did,
+            filter_toc=filter_toc,
+            chunk_size=kwargs.get("chunk_size", 1024),
+            chunk_overlap=kwargs.get("chunk_overlap", 128),
+            page_range=kwargs.get("page_range", ""),
+        )
     return chunk_manual_text(text, doc_id=did, **kwargs)
 
 
@@ -179,8 +174,18 @@ def collect_manual_txt_sources(
     return [], []
 
 
-def load_manual_from_txt_paths(paths: list[Path], **kwargs) -> list[ChunkRecord]:
+def load_manual_from_txt_paths(
+    paths: list[Path],
+    *,
+    structured: bool | None = None,
+    **kwargs,
+) -> list[ChunkRecord] | ManualChunkBundle:
     """对已解析的一组 .txt 路径分块（去重、排序）。"""
+    from rag import config
+
+    use_structured = (
+        config.MANUAL_STRUCTURED_CHUNKING if structured is None else structured
+    )
     seen: set[Path] = set()
     uniq: list[Path] = []
     for p in sorted(paths, key=lambda x: (str(x.resolve()), x.name)):
@@ -190,9 +195,28 @@ def load_manual_from_txt_paths(paths: list[Path], **kwargs) -> list[ChunkRecord]
         seen.add(rp)
         uniq.append(p)
 
+    if use_structured:
+        from rag.structured_chunking import ManualChunkBundle
+
+        all_children: list[ChunkRecord] = []
+        all_parents: list[ChunkRecord] = []
+        for fp in uniq:
+            bundle = load_manual_from_plain_file(
+                fp, doc_id=fp.stem, structured=True, **kwargs
+            )
+            assert isinstance(bundle, ManualChunkBundle)
+            for c in bundle.children:
+                c.meta["file"] = str(fp.name)
+            for p in bundle.parents:
+                p.meta["file"] = str(fp.name)
+            all_children.extend(bundle.children)
+            all_parents.extend(bundle.parents)
+        return ManualChunkBundle(children=all_children, parents=all_parents)
+
     all_chunks: list[ChunkRecord] = []
     for fp in uniq:
-        sub = load_manual_from_plain_file(fp, doc_id=fp.stem, **kwargs)
+        sub = load_manual_from_plain_file(fp, doc_id=fp.stem, structured=False, **kwargs)
+        assert isinstance(sub, list)
         for c in sub:
             c.meta["file"] = str(fp.name)
         all_chunks.extend(sub)

@@ -1,4 +1,6 @@
 {
   "qdrant_collection": "device_rag_manual",
-  "source": "manual"
+  "source": "manual",
+  "has_parents": true,
+  "manual_doc_count": 2
 }

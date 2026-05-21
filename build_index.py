@@ -24,6 +24,7 @@ from rag.chunking import (
     collect_manual_txt_sources,
     load_manual_from_txt_paths,
 )
+from rag.structured_chunking import ManualChunkBundle
 from rag.config import INDEX_DIR, MANUAL_CHUNK_OVERLAP, MANUAL_CHUNK_SIZE, QDRANT_COLLECTION_PREFIX
 from rag.embedder import BgeEmbedder
 from rag.index_store import DualIndexStore
@@ -101,6 +102,11 @@ def main() -> None:
     )
     p.add_argument("--chunk-size", type=int, default=MANUAL_CHUNK_SIZE)
     p.add_argument("--chunk-overlap", type=int, default=MANUAL_CHUNK_OVERLAP)
+    p.add_argument(
+        "--legacy-chunking",
+        action="store_true",
+        help="使用旧版段落+定长分块（无章节/父子块）",
+    )
     args = p.parse_args()
 
     if args.manual_file is not None and args.manual_dir is not None:
@@ -122,7 +128,8 @@ def main() -> None:
         else _default_manual_txt_dir()
     )
 
-    manual_chunks = []
+    manual_chunks: list = []
+    manual_parents: list = []
     if args.manual_file or args.manual_dir:
         mf = Path(args.manual_file).resolve() if args.manual_file else None
         md = Path(args.manual_dir).resolve() if args.manual_dir else None
@@ -158,11 +165,19 @@ def main() -> None:
             print("手册路径下未找到可用于索引的 .txt。", file=sys.stderr)
             sys.exit(1)
 
-        manual_chunks = load_manual_from_txt_paths(
+        manual_result = load_manual_from_txt_paths(
             ready_txt,
             chunk_size=args.chunk_size,
             chunk_overlap=args.chunk_overlap,
+            structured=not args.legacy_chunking,
         )
+        manual_parents: list = []
+        if isinstance(manual_result, ManualChunkBundle):
+            manual_chunks = manual_result.children
+            manual_parents = manual_result.parents
+            print(f"手册父块(章节)数量: {len(manual_parents)}")
+        else:
+            manual_chunks = manual_result
     else:
         print("未指定 --manual-file 或 --manual-dir，手册索引为空（仅构建日志索引）。")
     print(f"manual_chunks 数量: {len(manual_chunks)}，平均长度: {_avg_chunk_length(manual_chunks):.1f}")
@@ -175,7 +190,14 @@ def main() -> None:
         print(f"未找到日志文件: {args.logs}，跳过日志索引。")
     print(f"log_chunks 数量: {len(log_chunks)}，平均长度: {_avg_chunk_length(log_chunks):.1f}")
 
-    store.manual.build(manual_chunks, embedder, store.client, m_coll, recreate=args.recreate)
+    store.manual.build(
+        manual_chunks,
+        embedder,
+        store.client,
+        m_coll,
+        recreate=args.recreate,
+        parents=manual_parents if manual_chunks else None,
+    )
     store.log.build(log_chunks, embedder, store.client, l_coll, recreate=args.recreate)
     store.save()
     print(f"索引元数据已保存: {args.index_dir}")

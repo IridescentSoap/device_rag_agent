@@ -44,3 +44,10 @@ dashscope>=1.14.0
 
 # ----- 环境变量加载（可选，本地 .env）-----
 python-dotenv>=1.0.0
+
+# ----- Agent API（api/server.py，可选）-----
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+
+# ----- Agent LangGraph 工作流（可选；未安装时自动回退 executor）-----
+langgraph>=0.2.0

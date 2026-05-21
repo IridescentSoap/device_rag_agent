@@ -61,9 +61,11 @@ def _local_rerank_path() -> str:
     )
 
 
-def _local_rerank_device() -> str | None:
+def _local_rerank_device() -> str:
+    from rag import config
+
     v = os.environ.get("RAG_LOCAL_RERANK_DEVICE", "").strip()
-    return v or None
+    return v or config.RERANK_DEVICE
 
 
 def _local_rerank_batch_size() -> int:
@@ -152,6 +154,20 @@ def _resolve_rerank_device(explicit: str | None) -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def _qwen3_rerank_dtype(dev: str) -> "torch.dtype":
+    """CUDA 上默认 float16；部分环境 bfloat16 会触发 illegal memory access。"""
+    v = os.environ.get("RAG_QWEN3_RERANK_DTYPE", "").strip().lower()
+    if v in ("float16", "fp16"):
+        return torch.float16
+    if v in ("float32", "fp32"):
+        return torch.float32
+    if v in ("bfloat16", "bf16"):
+        return torch.bfloat16
+    if dev.startswith("cuda") and torch.cuda.is_available():
+        return torch.float16
+    return torch.float32
+
+
 def _load_qwen3_rerank_bundle(model_path: str, device: str | None) -> dict[str, Any] | None:
     ml = _qwen3_rerank_max_length()
     dev = _resolve_rerank_device(device)
@@ -166,7 +182,7 @@ def _load_qwen3_rerank_bundle(model_path: str, device: str | None) -> dict[str, 
         return None
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side="left")
-        dtype = torch.bfloat16 if dev.startswith("cuda") and torch.cuda.is_available() else torch.float32
+        dtype = _qwen3_rerank_dtype(dev)
         model = AutoModelForCausalLM.from_pretrained(model_path, dtype=dtype).eval()
         model = model.to(dev)
         token_false_id = tokenizer.convert_tokens_to_ids("no")
@@ -223,7 +239,8 @@ def _local_rerank_qwen3(
         "Given a web search query, retrieve relevant passages that answer the query",
     ).strip() or "Given a web search query, retrieve relevant passages that answer the query"
 
-    texts = [_format_qwen3_instruction(instruct, query, c.text[:8000]) for c in items]
+    doc_max = int(os.environ.get("RAG_RERANK_DOC_MAX_CHARS", "8000"))
+    texts = [_format_qwen3_instruction(instruct, query, c.text[:doc_max]) for c in items]
     all_scores: list[float] = []
     bs = _local_rerank_batch_size()
     try:

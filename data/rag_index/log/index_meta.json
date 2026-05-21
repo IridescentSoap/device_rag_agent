@@ -1,4 +1,6 @@
 {
   "qdrant_collection": "device_rag_log",
-  "source": "log"
+  "source": "log",
+  "has_parents": false,
+  "manual_doc_count": 0
 }

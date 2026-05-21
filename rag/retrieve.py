@@ -11,6 +11,9 @@ from qdrant_client import QdrantClient
 
 from rag.config import (
     LOG_DEDUP_MAX_PER_SYSTEM,
+    MANUAL_DOC_ROUTING,
+    MANUAL_DOC_ROUTING_MIN_DOCS,
+    MANUAL_DOC_TOPK,
     RRF_K,
     ROUTE_KEYWORD_HINT,
     ROUTE_RATIO,
@@ -219,6 +222,18 @@ def _topk_from_scores(
     return [chunks[int(i)] for i in idx]
 
 
+def resolve_manual_doc_ids(corpus: CorpusIndex, query: str) -> list[str] | None:
+    """
+    多手册时返回应检索的 doc_id 列表；单本或未启用路由时返回 None（表示不过滤）。
+    """
+    cat = corpus.doc_catalog
+    if not MANUAL_DOC_ROUTING or not cat or not cat.docs:
+        return None
+    if len(cat.docs) < MANUAL_DOC_ROUTING_MIN_DOCS:
+        return None
+    return cat.select_doc_ids(query, top_k=MANUAL_DOC_TOPK)
+
+
 def retrieve_from_corpus(
     corpus: CorpusIndex,
     query: str,
@@ -226,12 +241,27 @@ def retrieve_from_corpus(
     qdrant_client: QdrantClient,
     topk_bm25: int = TOPK_BM25,
     topk_vec: int = TOPK_VECTOR,
+    doc_ids: list[str] | None = None,
 ) -> dict[str, float]:
     if not corpus.chunks:
         return {}
+    allow: set[str] | None = set(doc_ids) if doc_ids else None
+
     bm = corpus.bm25_scores(query)
-    ranked_b = _topk_from_scores(corpus.chunks, bm, topk_bm25)
-    ranked_v = corpus.vector_search(query, embedder, qdrant_client, topk_vec)
+    if allow is not None:
+        pairs = [
+            (corpus.chunks[i], float(bm[i]))
+            for i in range(len(corpus.chunks))
+            if corpus.chunks[i].meta.get("doc_id") in allow
+        ]
+        pairs.sort(key=lambda x: -x[1])
+        ranked_b = [c for c, _ in pairs[:topk_bm25]]
+    else:
+        ranked_b = _topk_from_scores(corpus.chunks, bm, topk_bm25)
+
+    ranked_v = corpus.vector_search(
+        query, embedder, qdrant_client, topk_vec, doc_ids=doc_ids
+    )
     return _rrf_merge([ranked_b, ranked_v])
 
 

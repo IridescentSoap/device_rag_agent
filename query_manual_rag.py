@@ -16,7 +16,7 @@ from rag.config import (
 from rag.embedder import BgeEmbedder
 from rag.index_store import DualIndexStore
 from rag.llm import chat
-from rag.pipeline import expand_context
+from rag.context_expand import expand_context
 from rag.prompts import SYSTEM_MANUAL_RAG, build_user_message
 from rag.rerank import RerankHit
 from rag.retrieval_stage import corpus_retrieve_rerank

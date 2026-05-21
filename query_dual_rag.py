@@ -5,7 +5,14 @@ from __future__ import annotations
 import argparse
 import os
 
-from rag.config import FINAL_CONTEXT_N, INDEX_DIR, TOPK_BM25, TOPK_VECTOR
+from rag.config import (
+    EMBEDDING_DEVICE,
+    FINAL_CONTEXT_N,
+    INDEX_DIR,
+    RERANK_DEVICE,
+    TOPK_BM25,
+    TOPK_VECTOR,
+)
 from rag.pipeline import DualSourceRagPipeline
 from rag.prompts import log_chunk_body_for_prompt
 
@@ -37,7 +44,12 @@ def main() -> None:
     )
     p.add_argument("--index-dir", type=str, default=str(INDEX_DIR))
     p.add_argument("--embedding-model", type=str, default=None)
-    p.add_argument("--device", type=str, default=None)
+    p.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help=f"BGE embedding 设备（默认 env RAG_EMBEDDING_DEVICE 或 {EMBEDDING_DEVICE}）",
+    )
     p.add_argument("-q", "--query", type=str, default="", help="单次提问；省略则进入交互循环")
     p.add_argument("--topk-bm25", type=int, default=TOPK_BM25)
     p.add_argument("--topk-vec", type=int, default=TOPK_VECTOR)
@@ -63,10 +75,12 @@ def main() -> None:
     ):
         print("警告: 未设置 DASHSCOPE_API_KEY 或 OPENAI_API_KEY，生成阶段会失败。")
 
+    emb_dev = args.device or EMBEDDING_DEVICE
+    print(f"[device] embedding={emb_dev} rerank={RERANK_DEVICE}", flush=True)
     pipe = DualSourceRagPipeline(
         index_dir=args.index_dir,
         embedding_model=args.embedding_model,
-        device=args.device,
+        device=emb_dev,
     )
     if not pipe.store.manual.chunks and not pipe.store.log.chunks:
         print("手册与日志语料均为空，请先执行 build_index.py。")
@@ -92,6 +106,8 @@ def main() -> None:
             print(f"log_rrf_hits: {ret.log_rrf_pool}")
             print(f"merged_pool: {ret.merged_pool}")
             print(f"query_route: {ret.query_route}")
+            if ret.selected_manual_docs:
+                print(f"selected_manual_docs: {ret.selected_manual_docs}")
             print(f"final_candidates: {len(ret.recall_hits)}")
             if ret.recall_hits:
                 print("-" * 90)

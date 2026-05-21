@@ -68,6 +68,7 @@ def upsert_chunks(
                 payload={
                     "chunk_id": c.chunk_id,
                     "source": c.source,
+                    "doc_id": str((c.meta or {}).get("doc_id") or ""),
                     "record": c.to_dict(),
                 },
             )
@@ -83,13 +84,26 @@ def search_by_vector(
     query_vector: np.ndarray,
     limit: int,
     source_filter: str | None = None,
+    doc_ids: list[str] | None = None,
 ) -> list[tuple[ChunkRecord, float]]:
     global _QDRANT_WARNED
 
     qv = query_vector.tolist() if hasattr(query_vector, "tolist") else list(query_vector)
-    flt = None
+    must: list[FieldCondition] = []
+    should: list[FieldCondition] = []
     if source_filter:
-        flt = Filter(must=[FieldCondition(key="source", match=MatchValue(value=source_filter))])
+        must.append(FieldCondition(key="source", match=MatchValue(value=source_filter)))
+    if doc_ids:
+        doc_conds = [
+            FieldCondition(key="doc_id", match=MatchValue(value=did)) for did in doc_ids
+        ]
+        if len(doc_ids) == 1:
+            must.extend(doc_conds)
+        else:
+            should.extend(doc_conds)
+    flt = None
+    if must or should:
+        flt = Filter(must=must or None, should=should or None)
     try:
         hits = None
         # 兼容不同 qdrant-client 版本：

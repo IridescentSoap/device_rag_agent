@@ -6,12 +6,15 @@ import os
 
 from openai import OpenAI
 
-from rag.config import LLM_BASE_URL, LLM_MODEL, OPENAI_API_KEY
+from rag.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 
 
 def get_client() -> OpenAI:
-    key = OPENAI_API_KEY
-    return OpenAI(api_key=key, base_url=LLM_BASE_URL)
+    if not LLM_API_KEY:
+        raise RuntimeError(
+            "未配置 LLM API Key，请设置环境变量 LLM_API_KEY（或 DASHSCOPE_API_KEY / OPENAI_API_KEY）"
+        )
+    return OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
 
 
 def chat(

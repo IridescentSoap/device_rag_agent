@@ -19,7 +19,8 @@ from rag.config import (
 from rag.embedder import BgeEmbedder
 from rag.index_store import DualIndexStore
 from rag.llm import chat
-from rag.prompts import build_user_message, log_chunk_body_for_prompt, system_prompt_for_route
+from rag.context_expand import expand_context
+from rag.prompts import build_user_message, system_prompt_for_route
 from rag.rerank import RerankHit, rerank_chunks, rerank_chunks_with_scores
 from rag.retrieve import (
     QueryRoute,
@@ -29,6 +30,7 @@ from rag.retrieve import (
     merge_dual_rrf,
     merge_quota_for_route,
     rerank_quota_for_route,
+    resolve_manual_doc_ids,
     retrieve_from_corpus,
     scores_to_chunks,
 )
@@ -51,6 +53,7 @@ class DualRetrieveResult:
     log_rrf_pool: int
     merged_pool: int
     recall_hits: list[RerankHit] = field(default_factory=list)
+    selected_manual_docs: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -60,42 +63,6 @@ class DualRagAnswer(RagAnswer):
     recall_hits: list[RerankHit] = field(default_factory=list)
     manual_in_context: int = 0
     log_in_context: int = 0
-
-
-def _neighbor_text(store: DualIndexStore, chunk: ChunkRecord) -> str:
-    if chunk.source != "manual":
-        return ""
-    doc_id = chunk.meta.get("doc_id")
-    idx = chunk.meta.get("chunk_index")
-    if doc_id is None or idx is None:
-        return ""
-    extra: list[str] = []
-    for delta in (-1, 1):
-        want = idx + delta
-        for c in store.manual.chunks:
-            if c.meta.get("doc_id") == doc_id and c.meta.get("chunk_index") == want:
-                extra.append(c.text[:2000])
-                break
-    return "\n".join(extra)
-
-
-def expand_context(store: DualIndexStore, chunks: list[ChunkRecord]) -> list[str]:
-    blocks: list[str] = []
-    for c in chunks:
-        header = f"[{c.source}] chunk_id={c.chunk_id}"
-        if c.meta.get("case_id"):
-            header += f" case_id={c.meta.get('case_id')}"
-        if c.meta.get("page_range"):
-            header += f" page={c.meta.get('page_range')}"
-        neighbor = _neighbor_text(store, c)
-        if c.source == "log":
-            body = log_chunk_body_for_prompt(c)
-        else:
-            body = c.text
-        if neighbor:
-            body = f"{body}\n\n[相邻片段补充]\n{neighbor}"
-        blocks.append(f"{header}\n{body}")
-    return blocks
 
 
 class RagPipeline:
@@ -110,9 +77,11 @@ class RagPipeline:
         self.index_dir = index_dir or str(INDEX_DIR)
         self.store = DualIndexStore.load(self.index_dir)
         model_name = embedding_model or config.EMBEDDING_MODEL
-        self.embedder = BgeEmbedder(model_name, device=device)
+        emb_device = device if device is not None else config.EMBEDDING_DEVICE
+        self.embedder = BgeEmbedder(model_name, device=emb_device)
 
     def retrieve(self, query: str, pool_size: int = 40) -> tuple[str, list[ChunkRecord]]:
+        manual_doc_ids = resolve_manual_doc_ids(self.store.manual, query)
         m_scores = retrieve_from_corpus(
             self.store.manual,
             query,
@@ -120,6 +89,7 @@ class RagPipeline:
             self.store.client,
             TOPK_PER_SOURCE,
             TOPK_PER_SOURCE,
+            doc_ids=manual_doc_ids,
         )
         l_scores = retrieve_from_corpus(
             self.store.log,
@@ -168,7 +138,8 @@ class DualSourceRagPipeline:
         self.index_dir = index_dir or str(INDEX_DIR)
         self.store = DualIndexStore.load(self.index_dir)
         model_name = embedding_model or config.EMBEDDING_MODEL
-        self.embedder = BgeEmbedder(model_name, device=device)
+        emb_device = device if device is not None else config.EMBEDDING_DEVICE
+        self.embedder = BgeEmbedder(model_name, device=emb_device)
 
     def retrieve(
         self,
@@ -183,6 +154,7 @@ class DualSourceRagPipeline:
         final_topk: int = 20,
         fill_shortage: bool = True,
     ) -> DualRetrieveResult:
+        manual_doc_ids = resolve_manual_doc_ids(self.store.manual, query)
         m_scores = retrieve_from_corpus(
             self.store.manual,
             query,
@@ -190,6 +162,7 @@ class DualSourceRagPipeline:
             self.store.client,
             topk_bm25=topk_bm25,
             topk_vec=topk_vec,
+            doc_ids=manual_doc_ids,
         )
         l_scores = retrieve_from_corpus(
             self.store.log,
@@ -256,6 +229,7 @@ class DualSourceRagPipeline:
             log_rrf_pool=len(l_scores),
             merged_pool=merged_pool,
             recall_hits=passed,
+            selected_manual_docs=manual_doc_ids or [],
         )
 
     @staticmethod

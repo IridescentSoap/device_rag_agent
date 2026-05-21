@@ -24,8 +24,13 @@ data/manual_pdf/
 # 运行时/缓存
 storage/
 *.log
+logs/
 data/qdrant.log
 /tmp/
+*.bak
+
+# Agent 日志
+logs/query_log.jsonl
 
 # IDE
 .idea/
