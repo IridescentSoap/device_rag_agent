@@ -51,6 +51,8 @@ class AskRequest(BaseModel):
     history: list[HistoryTurn] = Field(default_factory=list)
     skip_llm: bool = False
     fast_mode: bool = False
+    max_supplement_rounds: int = 1
+    use_llm_planner: bool | None = None
 
 
 class AskResponse(BaseModel):
@@ -63,6 +65,7 @@ class AskResponse(BaseModel):
     need_human_confirm: bool
     latency_ms: int
     fast_mode: bool = False
+    supplement_rounds: int = 0
 
 
 @app.get("/health")
@@ -79,7 +82,12 @@ def metrics() -> dict[str, Any]:
 def ask(req: AskRequest) -> AskResponse:
     history = [h.model_dump() for h in req.history]
     resp = get_executor().run(
-        req.query, history, skip_llm=req.skip_llm, fast_mode=req.fast_mode
+        req.query,
+        history,
+        skip_llm=req.skip_llm,
+        fast_mode=req.fast_mode,
+        max_supplement_rounds=req.max_supplement_rounds,
+        use_llm_planner=req.use_llm_planner,
     )
     d = resp.to_dict()
     return AskResponse(
@@ -92,6 +100,7 @@ def ask(req: AskRequest) -> AskResponse:
         need_human_confirm=d["need_human_confirm"],
         latency_ms=d["latency_ms"],
         fast_mode=d.get("fast_mode", False),
+        supplement_rounds=d.get("supplement_rounds", 0),
     )
 
 

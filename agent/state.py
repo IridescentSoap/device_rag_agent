@@ -24,6 +24,8 @@ class PlanResult:
     needs_manual: bool = False
     needs_log: bool = False
     confidence: float = 0.8
+    planner_type: str = "rule"
+    missing_info: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -33,6 +35,8 @@ class PlanResult:
             "needs_manual": self.needs_manual,
             "needs_log": self.needs_log,
             "confidence": self.confidence,
+            "planner_type": self.planner_type,
+            "missing_info": self.missing_info,
         }
 
 
@@ -64,6 +68,7 @@ class EvidenceResult:
     need_human_confirm: bool = False
     missing_aspects: list[str] = field(default_factory=list)
     pipeline_route: str = "balanced"
+    supplement_queries: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -71,6 +76,7 @@ class EvidenceResult:
             "confidence": self.confidence,
             "need_human_confirm": self.need_human_confirm,
             "missing_aspects": self.missing_aspects,
+            "supplement_queries": self.supplement_queries,
             "pipeline_route": self.pipeline_route,
             "evidence_count": len(self.items),
             "items": [x.to_dict() for x in self.items[:8]],
@@ -90,6 +96,7 @@ class AgentResponse:
     fast_mode: bool = False
     plan: dict[str, Any] = field(default_factory=dict)
     evidence: dict[str, Any] = field(default_factory=dict)
+    supplement_rounds: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         out = {
@@ -102,6 +109,7 @@ class AgentResponse:
             "need_human_confirm": self.need_human_confirm,
             "latency_ms": self.latency_ms,
             "fast_mode": self.fast_mode,
+            "supplement_rounds": self.supplement_rounds,
             "plan": self.plan,
             "evidence": self.evidence,
         }

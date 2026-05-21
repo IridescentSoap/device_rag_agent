@@ -2,7 +2,8 @@
 Agent 工作流：优先 LangGraph，不可用时回退到 agent.executor.AgentExecutor。
 
 流程与 executor 一致：
-  rewrite_query -> plan_query -> retrieve -> judge_evidence -> generate_answer -> log_trace
+  rewrite_query -> plan_query -> retrieve -> judge_evidence
+  -> [supplement_search -> judge_evidence]* -> generate_answer -> log_trace
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from typing import Any, Literal, TypedDict
 
 from agent.context import rewrite_query
 from agent.evidence import judge_evidence
-from agent.executor import AgentExecutor
+from agent.executor import AgentExecutor, _merge_hits
 from agent.fast_mode import resolve_fast_mode
 from agent.planner import plan_query
 from agent.state import AgentResponse, PlanResult
@@ -51,6 +52,10 @@ class WorkflowState(TypedDict, total=False):
     answer: str
     citations: list[str]
     early_exit: bool
+    supplement_rounds: int
+    max_supplement_rounds: int
+    supplement_queries: list[str]
+    use_llm_planner: bool | None
 
 
 def _plan_from_dict(d: dict[str, Any]) -> PlanResult:
@@ -88,13 +93,25 @@ class AgentWorkflow:
         *,
         skip_llm: bool = False,
         fast_mode: bool | None = None,
+        max_supplement_rounds: int = 1,
+        use_llm_planner: bool | None = None,
     ) -> AgentResponse:
         if self._graph is None:
             return self._fallback.run(
-                query, history, skip_llm=skip_llm, fast_mode=fast_mode
+                query,
+                history,
+                skip_llm=skip_llm,
+                fast_mode=fast_mode,
+                max_supplement_rounds=max_supplement_rounds,
+                use_llm_planner=use_llm_planner,
             )
         return self._run_langgraph(
-            query, history, skip_llm=skip_llm, fast_mode=fast_mode
+            query,
+            history,
+            skip_llm=skip_llm,
+            fast_mode=fast_mode,
+            max_supplement_rounds=max_supplement_rounds,
+            use_llm_planner=use_llm_planner,
         )
 
     def _run_langgraph(
@@ -104,6 +121,8 @@ class AgentWorkflow:
         *,
         skip_llm: bool,
         fast_mode: bool | None,
+        max_supplement_rounds: int,
+        use_llm_planner: bool | None,
     ) -> AgentResponse:
         tools = self._fallback._tools_for_run(fast_mode)
         self._current_tools = tools
@@ -119,6 +138,10 @@ class AgentWorkflow:
                 "pipeline_route": "balanced",
                 "citations": [],
                 "early_exit": False,
+                "max_supplement_rounds": max_supplement_rounds,
+                "supplement_rounds": 0,
+                "supplement_queries": [],
+                "use_llm_planner": use_llm_planner,
             }
             if tools.fast_mode:
                 init["tools_used"] = ["fast_mode"]
@@ -150,6 +173,7 @@ class AgentWorkflow:
             fast_mode=tools.fast_mode,
             plan=plan,
             evidence=ev,
+            supplement_rounds=int(state.get("supplement_rounds") or 0),
         )
         AgentExecutor._log(query, resp, history=history, tools=tools)
         return resp
@@ -163,6 +187,7 @@ class AgentWorkflow:
         graph.add_node("insufficient", self._node_insufficient)
         graph.add_node("retrieve", self._node_retrieve)
         graph.add_node("judge_evidence", self._node_judge)
+        graph.add_node("supplement_search", self._node_supplement_search)
         graph.add_node("generate_answer", self._node_generate)
 
         graph.add_edge(START, "rewrite_query")
@@ -174,7 +199,12 @@ class AgentWorkflow:
         )
         graph.add_edge("insufficient", END)
         graph.add_edge("retrieve", "judge_evidence")
-        graph.add_edge("judge_evidence", "generate_answer")
+        graph.add_conditional_edges(
+            "judge_evidence",
+            self._route_after_judge,
+            {"supplement_search": "supplement_search", "generate_answer": "generate_answer"},
+        )
+        graph.add_edge("supplement_search", "judge_evidence")
         graph.add_edge("generate_answer", END)
         return graph.compile()
 
@@ -184,6 +214,21 @@ class AgentWorkflow:
         if plan.get("route") == "insufficient_evidence":
             return "insufficient"
         return "retrieve"
+
+    @staticmethod
+    def _route_after_judge(state: WorkflowState) -> str:
+        ev = state.get("evidence") or {}
+        rounds = int(state.get("supplement_rounds") or 0)
+        max_rounds = int(state.get("max_supplement_rounds") or 0)
+        missing = ev.get("missing_aspects") or []
+        supplement_queries = ev.get("supplement_queries") or []
+        if (
+            (ev.get("need_human_confirm") or missing)
+            and supplement_queries
+            and rounds < max_rounds
+        ):
+            return "supplement_search"
+        return "generate_answer"
 
     def _node_rewrite(self, state: WorkflowState) -> WorkflowState:
         tools_used = list(state.get("tools_used") or [])
@@ -197,6 +242,7 @@ class AgentWorkflow:
             state["query"],
             state.get("history"),
             rewritten_query=state.get("rewritten_query"),
+            use_llm_planner=state.get("use_llm_planner"),
         )
         tools_used.append("plan_query")
         return {"plan": plan.to_dict(), "tools_used": tools_used}
@@ -253,9 +299,50 @@ class AgentWorkflow:
             list(state.get("hits") or []),
             pipeline_route=state.get("pipeline_route") or "balanced",
             plan_confidence=plan.confidence,
+            query=plan.rewritten_query,
+            route=plan.route,
         )
         tools_used.append("judge_evidence")
-        return {"evidence": ev.to_dict(), "tools_used": tools_used}
+        return {
+            "evidence": ev.to_dict(),
+            "tools_used": tools_used,
+            "supplement_queries": ev.supplement_queries,
+        }
+
+    def _node_supplement_search(self, state: WorkflowState) -> WorkflowState:
+        tools = self._current_tools
+        assert tools is not None
+        tools_used = list(state.get("tools_used") or [])
+        plan = _plan_from_dict(state["plan"])  # type: ignore[arg-type]
+        ev = state.get("evidence") or {}
+        supplement_queries = list(
+            state.get("supplement_queries") or ev.get("supplement_queries") or []
+        )
+        hits = list(state.get("hits") or [])
+        new_hits: list[RerankHit] = []
+        manual_only = plan.needs_manual and not plan.needs_log
+        log_only = plan.needs_log and not plan.needs_manual
+
+        for sq in supplement_queries:
+            if manual_only:
+                new_hits.extend(tools.search_manual(sq))
+                tools_used.append("supplement_search_manual")
+            elif log_only:
+                new_hits.extend(tools.search_logs(sq))
+                tools_used.append("supplement_search_logs")
+            else:
+                batch, _ = tools.hybrid_search(sq)
+                new_hits.extend(batch)
+                tools_used.append("supplement_search_hybrid")
+
+        merged = _merge_hits(hits, new_hits)
+        rounds = int(state.get("supplement_rounds") or 0) + 1
+        return {
+            "hits": merged,
+            "tools_used": tools_used,
+            "supplement_rounds": rounds,
+            "supplement_queries": supplement_queries,
+        }
 
     def _node_generate(self, state: WorkflowState) -> WorkflowState:
         tools = self._current_tools

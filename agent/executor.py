@@ -9,10 +9,22 @@ from agent.context import rewrite_query
 from agent.evidence import judge_evidence
 from agent.monitor import log_trace
 from agent.planner import plan_query
-from agent.state import AgentResponse
+from agent.state import AgentResponse, PlanResult
 from agent.fast_mode import resolve_fast_mode
 from agent.tools import RagTools
 from rag.rerank import RerankHit
+
+
+def _merge_hits(*hit_lists: list[RerankHit]) -> list[RerankHit]:
+    """按 chunk_id 去重，保留更高 score，最终按 score 降序。"""
+    by_id: dict[str, RerankHit] = {}
+    for batch in hit_lists:
+        for h in batch:
+            cid = h.chunk.chunk_id
+            prev = by_id.get(cid)
+            if prev is None or float(h.score) > float(prev.score):
+                by_id[cid] = h
+    return sorted(by_id.values(), key=lambda x: float(x.score), reverse=True)
 
 
 class AgentExecutor:
@@ -29,6 +41,30 @@ class AgentExecutor:
             fast_mode=use_fast,
         )
 
+    def _supplement_retrieve(
+        self,
+        tools: RagTools,
+        plan: PlanResult,
+        supplement_queries: list[str],
+        tools_used: list[str],
+    ) -> list[RerankHit]:
+        new_hits: list[RerankHit] = []
+        manual_only = plan.needs_manual and not plan.needs_log
+        log_only = plan.needs_log and not plan.needs_manual
+
+        for sq in supplement_queries:
+            if manual_only:
+                new_hits.extend(tools.search_manual(sq))
+                tools_used.append("supplement_search_manual")
+            elif log_only:
+                new_hits.extend(tools.search_logs(sq))
+                tools_used.append("supplement_search_logs")
+            else:
+                batch, _ = tools.hybrid_search(sq)
+                new_hits.extend(batch)
+                tools_used.append("supplement_search_hybrid")
+        return new_hits
+
     def run(
         self,
         query: str,
@@ -36,6 +72,8 @@ class AgentExecutor:
         *,
         skip_llm: bool = False,
         fast_mode: bool | None = None,
+        max_supplement_rounds: int = 1,
+        use_llm_planner: bool | None = None,
     ) -> AgentResponse:
         tools = self._tools_for_run(fast_mode)
         t0 = time.perf_counter()
@@ -44,13 +82,16 @@ class AgentExecutor:
             tools_used.append("fast_mode")
         hits: list[RerankHit] = []
         pipeline_route = "balanced"
+        supplement_rounds = 0
 
         # 1) rewrite
         rewritten = rewrite_query(query, history)
         tools_used.append("rewrite_query")
 
         # 2) plan
-        plan = plan_query(query, history, rewritten_query=rewritten)
+        plan = plan_query(
+            query, history, rewritten_query=rewritten, use_llm_planner=use_llm_planner
+        )
         tools_used.append("plan_query")
 
         if plan.route == "insufficient_evidence":
@@ -72,6 +113,7 @@ class AgentExecutor:
                 fast_mode=tools.fast_mode,
                 plan=plan.to_dict(),
                 evidence=ev.to_dict(),
+                supplement_rounds=0,
             )
             self._log(query, resp, tools=tools)
             return resp
@@ -95,8 +137,33 @@ class AgentExecutor:
             hits,
             pipeline_route=pipeline_route,
             plan_confidence=plan.confidence,
+            query=q,
+            route=plan.route,
         )
         tools_used.append("judge_evidence")
+
+        # 4b) supplement retrieval
+        if (
+            max_supplement_rounds > 0
+            and ev.supplement_queries
+            and (ev.need_human_confirm or ev.missing_aspects)
+        ):
+            for _ in range(max_supplement_rounds):
+                supplement_rounds += 1
+                extra = self._supplement_retrieve(
+                    tools, plan, ev.supplement_queries, tools_used
+                )
+                hits = _merge_hits(hits, extra)
+                ev = judge_evidence(
+                    hits,
+                    pipeline_route=pipeline_route,
+                    plan_confidence=plan.confidence,
+                    query=q,
+                    route=plan.route,
+                )
+                tools_used.append("judge_evidence")
+                if not ev.missing_aspects and not ev.need_human_confirm:
+                    break
 
         # 5) generate
         if skip_llm or not hits:
@@ -133,6 +200,7 @@ class AgentExecutor:
             fast_mode=tools.fast_mode,
             plan=plan.to_dict(),
             evidence=ev.to_dict(),
+            supplement_rounds=supplement_rounds,
         )
         self._log(query, resp, history=history, tools=tools)
         return resp
@@ -155,6 +223,8 @@ class AgentExecutor:
             "latency_ms": resp.latency_ms,
             "fast_mode": resp.fast_mode,
             "history_turns": len(history or []),
+            "supplement_rounds": resp.supplement_rounds,
+            "supplement_queries": (resp.evidence or {}).get("supplement_queries", []),
         }
         if tools and tools.fast_mode:
             entry["fast_config"] = tools.mode_config()

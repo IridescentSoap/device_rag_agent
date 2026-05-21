@@ -40,6 +40,17 @@ def main() -> None:
         action="store_true",
         help="快速模式：缩小候选池与 Rerank 规模（也可用环境变量 AGENT_FAST_MODE=1）",
     )
+    p.add_argument(
+        "--max-supplement-rounds",
+        type=int,
+        default=1,
+        help="证据不足时的最大补充检索轮数（默认 1）",
+    )
+    p.add_argument(
+        "--llm-planner",
+        action="store_true",
+        help="启用 LLM Planner（失败自动回退规则 Planner）",
+    )
     args = p.parse_args()
 
     from agent.tools import RagTools
@@ -54,7 +65,13 @@ def main() -> None:
         sys.exit(1)
 
     wf = AgentWorkflow(tools=tools)
-    resp = wf.run(args.query, skip_llm=args.retrieve_only, fast_mode=args.fast)
+    resp = wf.run(
+        args.query,
+        skip_llm=args.retrieve_only,
+        fast_mode=args.fast,
+        max_supplement_rounds=args.max_supplement_rounds,
+        use_llm_planner=args.llm_planner,
+    )
     out = resp.to_dict()
 
     if args.json:
