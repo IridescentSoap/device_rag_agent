@@ -9,11 +9,16 @@ from rag.text_utils import split_oversized, strip_header_footer_noise
 from rag.schemas import ChunkRecord
 
 _HEADER_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+# MinerU 手册常见：正文标题均为 ##，层级在「1. / 1.1. / 2.1.1.1.」编号中
+_OUTLINE_NUM_RE = re.compile(r"^(\d+(?:\.\d+)*)(?:[、．.]|\s)")
 _TOC_TITLE_RE = re.compile(r"(目\s*录|^目录$|修订记录|版本说明|版本历史|前\s*言\s*$)")
 _TOC_LINE_RE = re.compile(
     r"^\s*\d+(?:\.\d+)+\.?\s+.+\.{2,}",
 )
 _REVISION_TABLE_RE = re.compile(r"<table>.*?(版本|V\d+\.\d+)", re.DOTALL)
+# MinerU 误标为 ## 的节内列表/图注/要点，不作为章节标题
+_DECORATIVE_HEADING_RE = re.compile(r"^(图\s|⚫|■|●)")
+_TOP_CHAPTER_HINT_RE = re.compile(r"(前言|功能描述|外部交互|附录|系统总体|系统说明)")
 
 
 @dataclass
@@ -39,8 +44,64 @@ def _slug_section(section_index: int) -> str:
     return f"sec_{section_index:04d}"
 
 
+def _outline_number_parts(title: str) -> list[str] | None:
+    m = _OUTLINE_NUM_RE.match(title.strip())
+    if not m:
+        return None
+    return m.group(1).split(".")
+
+
+def _max_level1_chapter_num(heading_stack: list[tuple[int, str]]) -> int:
+    best = 0
+    for lev, t in heading_stack:
+        if lev != 1:
+            continue
+        parts = _outline_number_parts(t)
+        if parts and len(parts) == 1:
+            best = max(best, int(parts[0]))
+    return best
+
+
+def _is_decorative_heading(title: str) -> bool:
+    """图注、⚫ 要点等：保留为正文，不切 Section。"""
+    return bool(_DECORATIVE_HEADING_RE.match(title.strip()))
+
+
+def _resolve_heading_level(
+    title: str,
+    hash_level: int,
+    heading_stack: list[tuple[int, str]],
+) -> int:
+    """
+    推断标题层级：优先用编号深度（1.1.2 → 3），否则回退 # 个数或栈顶 +1。
+
+    适配 MinerU 导出手册（正文多为 ## + 数字编号，而非 ###/####）。
+    单段编号（## 1. / ## 3.）在深栈下多为节内列表，仅在新章（如 3. 外部交互）时为 level 1。
+    """
+    parts = _outline_number_parts(title)
+    if parts:
+        if len(parts) >= 2:
+            return max(1, min(6, len(parts)))
+        n = int(parts[0])
+        max_ch = _max_level1_chapter_num(heading_stack)
+        if _TOP_CHAPTER_HINT_RE.search(title) and (not heading_stack or n > max_ch):
+            return 1
+        if heading_stack:
+            top_level = heading_stack[-1][0]
+            if top_level >= 3:
+                return min(6, top_level + 1)
+            if top_level <= 2:
+                return 1
+        return 1
+    if hash_level == 1:
+        return 1
+    if heading_stack:
+        return max(2, min(6, heading_stack[-1][0] + 1))
+    return max(hash_level, 2)
+
+
 def parse_markdown_sections(text: str) -> list[Section]:
-    """按 # 标题切分为节；标题前导内容归入 preamble 节。"""
+    """按 Markdown 标题切分为节；编号标题用 1.1.1 深度建 chapter_path。"""
     lines = text.splitlines()
     sections: list[Section] = []
     heading_stack: list[tuple[int, str]] = []
@@ -73,9 +134,13 @@ def parse_markdown_sections(text: str) -> list[Section]:
     for line in lines:
         m = _HEADER_RE.match(line.strip())
         if m:
-            flush()
-            level = len(m.group(1))
+            hash_level = len(m.group(1))
             title = m.group(2).strip()
+            if hash_level >= 2 and _is_decorative_heading(title):
+                buf.append(line)
+                continue
+            flush()
+            level = _resolve_heading_level(title, hash_level, heading_stack)
             while heading_stack and heading_stack[-1][0] >= level:
                 heading_stack.pop()
             heading_stack.append((level, title))

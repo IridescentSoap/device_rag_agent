@@ -11,6 +11,8 @@
 # ----- MinerU PDF→TXT 脚本（mineru_to_pdf.py）可选 -----
 # llama-index-readers-mineru / mineru-open-sdk / tqdm
 tqdm>=4.66.0
+# 节内超长段落切分（rag/text_utils.split_oversized → SentenceSplitter）
+llama-index-core>=0.10.0
 
 # ----- 数据处理 -----
 pandas>=2.0,<3
