@@ -97,6 +97,11 @@ python scripts/run_agent_demo.py -q "你的问题" --max-supplement-rounds 1
 uvicorn api.server:app --host 0.0.0.0 --port 8000
 ```
 
+浏览器访问 [http://localhost:8000/](http://localhost:8000/) 打开问答页面（含快捷问题示例、流式输出）。
+
+- `POST /ask` — 一次性返回完整 JSON
+- `POST /ask/stream` — SSE 流式输出（`status` → `token` → `done`）
+
 `POST /ask` 请求体示例：
 
 ```json
@@ -211,6 +216,7 @@ device_rag_llm/
 ├── rag/                 # 底层 RAG（检索、重排、生成）
 ├── agent/               # Agent 编排（planner、evidence、executor、workflow）
 ├── api/server.py        # FastAPI
+├── web/index.html       # 问答前端页面
 ├── scripts/             # Demo 与工具脚本
 ├── build_index.py       # 建索引 CLI
 ├── query_rag.py         # 双源问答 CLI
@@ -254,3 +260,6 @@ Agent 查询轨迹写入 `logs/query_log.jsonl`（含 `route`、`tools_used`、`
 - 生成与 Planner 默认使用 DashScope 兼容接口（`qwen-plus`），可通过 `DASHSCOPE_BASE_URL` 对接本地 vLLM 等。
 - 安装 LangGraph 后 `AgentWorkflow` 走图编排；未安装时自动回退 `AgentExecutor`，行为保持一致。
 - 勿将 `.env` 提交到版本库；密钥仅放在本地 `.env`。
+
+## 前端启动
+uvicorn api.server:app --host 0.0.0.0 --port 8000

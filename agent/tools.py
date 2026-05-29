@@ -42,7 +42,7 @@ from rag.config import (
 
 from rag.context_expand import expand_context
 
-from rag.llm import chat
+from rag.llm import chat, chat_stream
 
 from rag.prompts import (
 
@@ -348,7 +348,7 @@ class RagTools:
 
 
 
-    def generate_answer(
+    def prepare_answer_messages(
 
         self,
 
@@ -366,17 +366,13 @@ class RagTools:
 
         sub_queries: list[str] | None = None,
 
-    ) -> tuple[str, list[str]]:
+    ) -> tuple[str, str, list[str]] | None:
+
+        """构建生成用 system/user 与 citations；无有效上下文时返回 None。"""
 
         if not hits:
 
-            return (
-
-                "未找到足够相关的参考资料，无法给出可靠结论。请补充设备名称、故障现象或手册章节。",
-
-                [],
-
-            )
+            return None
 
         if context_n is None:
 
@@ -404,9 +400,109 @@ class RagTools:
 
         user_msg = build_user_message(query, ctx_blocks, sub_queries=sub_queries)
 
-        answer = chat(system, user_msg)
-
         cites = [c.chunk_id for c in chunks]
+
+        return system, user_msg, cites
+
+
+
+    def iter_answer_tokens(
+
+        self,
+
+        query: str,
+
+        hits: list[RerankHit],
+
+        *,
+
+        agent_route: str = "hybrid_diagnosis",
+
+        pipeline_route: str | None = None,
+
+        context_n: int | None = None,
+
+        sub_queries: list[str] | None = None,
+
+    ):
+
+        """流式 yield LLM 回答文本增量。"""
+
+        prepared = self.prepare_answer_messages(
+
+            query,
+
+            hits,
+
+            agent_route=agent_route,
+
+            pipeline_route=pipeline_route,
+
+            context_n=context_n,
+
+            sub_queries=sub_queries,
+
+        )
+
+        if prepared is None:
+
+            return
+
+        system, user_msg, _cites = prepared
+
+        yield from chat_stream(system, user_msg)
+
+
+
+    def generate_answer(
+
+        self,
+
+        query: str,
+
+        hits: list[RerankHit],
+
+        *,
+
+        agent_route: str = "hybrid_diagnosis",
+
+        pipeline_route: str | None = None,
+
+        context_n: int | None = None,
+
+        sub_queries: list[str] | None = None,
+
+    ) -> tuple[str, list[str]]:
+
+        prepared = self.prepare_answer_messages(
+
+            query,
+
+            hits,
+
+            agent_route=agent_route,
+
+            pipeline_route=pipeline_route,
+
+            context_n=context_n,
+
+            sub_queries=sub_queries,
+
+        )
+
+        if prepared is None:
+
+            return (
+
+                "未找到足够相关的参考资料，无法给出可靠结论。请补充设备名称、故障现象或手册章节。",
+
+                [],
+
+            )
+
+        system, user_msg, cites = prepared
+
+        answer = chat(system, user_msg)
 
         return answer, cites
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 
 from openai import OpenAI
 
@@ -23,14 +24,31 @@ def chat(
     model: str | None = None,
     temperature: float = 0.2,
 ) -> str:
+    parts: list[str] = []
+    for token in chat_stream(system, user, model=model, temperature=temperature):
+        parts.append(token)
+    return "".join(parts).strip()
+
+
+def chat_stream(
+    system: str,
+    user: str,
+    model: str | None = None,
+    temperature: float = 0.2,
+) -> Iterator[str]:
+    """流式生成，逐段 yield 文本增量。"""
     client = get_client()
     model = model or LLM_MODEL
-    resp = client.chat.completions.create(
+    stream = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
         temperature=temperature,
+        stream=True,
     )
-    return (resp.choices[0].message.content or "").strip()
+    for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta

@@ -9,6 +9,7 @@ FastAPI 服务：Agentic RAG /ask
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,15 +20,28 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agent.monitor import get_metrics
 from agent.workflow import AgentWorkflow
 
+_WEB_DIR = _ROOT / "web"
+
 app = FastAPI(
     title="Device RAG Agent API",
     description="空管设备运维 Agentic RAG",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 _workflow: AgentWorkflow | None = None
@@ -106,6 +120,52 @@ def ask(req: AskRequest) -> AskResponse:
         fast_mode=d.get("fast_mode", False),
         supplement_rounds=d.get("supplement_rounds", 0),
     )
+
+
+def _sse_line(event: dict[str, Any]) -> str:
+    return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+
+@app.post("/ask/stream")
+def ask_stream(req: AskRequest) -> StreamingResponse:
+    """SSE 流式问答：status → token → done。"""
+    history = [h.model_dump() for h in req.history]
+
+    def event_generator():
+        try:
+            for event in get_executor().run_stream(
+                req.query,
+                history,
+                skip_llm=req.skip_llm,
+                fast_mode=req.fast_mode,
+                max_supplement_rounds=req.max_supplement_rounds,
+                use_llm_planner=req.use_llm_planner,
+                use_llm_decompose=req.use_llm_decompose,
+                use_llm_rewrite=req.use_llm_rewrite,
+            ):
+                yield _sse_line(event)
+        except Exception as exc:
+            yield _sse_line({"type": "error", "message": str(exc)})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    """问答前端首页。"""
+    return FileResponse(_WEB_DIR / "index.html")
+
+
+if _WEB_DIR.is_dir():
+    app.mount("/web", StaticFiles(directory=str(_WEB_DIR)), name="web-static")
 
 
 if __name__ == "__main__":

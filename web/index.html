@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>空管设备运维智能问答</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --text-muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --user-bubble: #1e3a5f;
+      --bot-bubble: #1e293b;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .layout {
+      max-width: 900px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px 16px;
+    }
+
+    header {
+      text-align: center;
+      padding: 12px 0 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-top: 6px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      margin-top: 10px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status.ok .status-dot { background: var(--success); }
+    .status.err .status-dot { background: #ef4444; }
+
+    .examples {
+      margin-bottom: 16px;
+    }
+
+    .examples h2 {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+
+    .example-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      text-align: left;
+      max-width: 100%;
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      background: var(--surface-2);
+    }
+
+    .chip:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 8px 0 16px;
+      min-height: 280px;
+    }
+
+    .empty-hint {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 48px 20px;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-width: 92%;
+      animation: fadeIn 0.25s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user { align-self: flex-end; }
+    .msg.bot { align-self: flex-start; }
+
+    .msg-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    .msg.user .msg-label { text-align: right; }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 0.9375rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user .bubble {
+      background: var(--user-bubble);
+      border: 1px solid #2d4a6f;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.bot .bubble {
+      background: var(--bot-bubble);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .meta {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+    }
+
+    .meta span { white-space: nowrap; }
+
+    .meta .warn { color: var(--warn); }
+
+    .citations {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .citations code {
+      background: var(--surface-2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      margin-right: 4px;
+    }
+
+    .typing {
+      display: flex;
+      gap: 5px;
+      padding: 14px 18px;
+      align-self: flex-start;
+    }
+
+    .typing span {
+      width: 7px;
+      height: 7px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+
+    .typing span:nth-child(2) { animation-delay: 0.15s; }
+    .typing span:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    .input-area {
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+
+    .options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      margin-bottom: 10px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .options label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    textarea {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 12px 14px;
+      font-size: 0.9375rem;
+      font-family: inherit;
+      resize: none;
+      min-height: 48px;
+      max-height: 140px;
+      line-height: 1.5;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    textarea:disabled { opacity: 0.6; }
+
+    button.send {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    button.send:hover:not(:disabled) { background: var(--accent-hover); }
+    button.send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    button.clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    button.clear:hover:not(:disabled) {
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    .error-banner {
+      background: #3f1d1d;
+      border: 1px solid #7f2d2d;
+      color: #fca5a5;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .error-banner.show { display: block; }
+
+    .status-line {
+      font-size: 0.75rem;
+      color: var(--accent);
+      padding: 0 4px;
+      min-height: 1em;
+    }
+
+    .bubble.streaming::after {
+      content: "▋";
+      display: inline-block;
+      margin-left: 2px;
+      color: var(--accent);
+      animation: blink 0.9s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>空管设备运维智能问答</h1>
+      <p>基于手册与运维日志的双源 Agentic RAG · 点击下方示例可快速体验</p>
+      <div id="apiStatus" class="status">
+        <span class="status-dot"></span>
+        <span>检测服务中…</span>
+      </div>
+    </header>
+
+    <section class="examples">
+      <h2>快捷问题示例</h2>
+      <div class="example-chips" id="exampleChips"></div>
+    </section>
+
+    <div id="errorBanner" class="error-banner"></div>
+
+    <main class="chat" id="chat">
+      <div class="empty-hint" id="emptyHint">
+        输入问题或点击上方示例开始对话<br />
+        支持多轮追问，系统会结合上下文改写检索
+      </div>
+    </main>
+
+    <footer class="input-area">
+      <div class="options">
+        <label><input type="checkbox" id="fastMode" checked /> 快速模式</label>
+        <label><input type="checkbox" id="llmPlanner" /> LLM Planner</label>
+        <label><input type="checkbox" id="llmDecompose" /> LLM Decompose</label>
+      </div>
+      <div class="input-row">
+        <textarea
+          id="queryInput"
+          rows="1"
+          placeholder="例如：某雷达黑屏是否影响业务，应该如何处理？"
+        ></textarea>
+        <button type="button" class="clear" id="clearBtn" title="清空对话">清空</button>
+        <button type="button" class="send" id="sendBtn">发送</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const EXAMPLES = [
+      "某雷达黑屏是否影响业务，应该如何处理？",
+      "自动化系统 QNH 参数如何配置？",
+      "ADS-B 地面站通信中断有哪些历史处置案例？",
+      "塔台自动化系统频繁告警，如何结合手册排查？",
+      "机坪雷达出现虚警，是否会影响运行？",
+      "EFS 系统无法启动，有没有类似故障记录？",
+    ];
+
+    const ROUTE_LABELS = {
+      manual_query: "手册查询",
+      log_case_query: "案例查询",
+      hybrid_diagnosis: "综合诊断",
+      follow_up_query: "追问",
+      insufficient_evidence: "信息不足",
+    };
+
+    const chatEl = document.getElementById("chat");
+    const emptyHint = document.getElementById("emptyHint");
+    const queryInput = document.getElementById("queryInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const errorBanner = document.getElementById("errorBanner");
+    const apiStatus = document.getElementById("apiStatus");
+    const exampleChips = document.getElementById("exampleChips");
+
+    /** @type {{role: string, content: string}[]} */
+    let history = [];
+    let loading = false;
+
+    function apiBase() {
+      return window.location.origin;
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${apiBase()}/health`);
+        if (!res.ok) throw new Error("health failed");
+        apiStatus.className = "status ok";
+        apiStatus.querySelector("span:last-child").textContent = "服务正常";
+      } catch {
+        apiStatus.className = "status err";
+        apiStatus.querySelector("span:last-child").textContent = "服务未连接";
+      }
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.classList.add("show");
+    }
+
+    function hideError() {
+      errorBanner.classList.remove("show");
+    }
+
+    function setLoading(on) {
+      loading = on;
+      sendBtn.disabled = on;
+      queryInput.disabled = on;
+      document.querySelectorAll(".chip").forEach((c) => (c.disabled = on));
+    }
+
+    function createBotMessageShell() {
+      if (emptyHint) emptyHint.style.display = "none";
+
+      const wrap = document.createElement("div");
+      wrap.className = "msg bot";
+
+      const label = document.createElement("div");
+      label.className = "msg-label";
+      label.textContent = "助手";
+
+      const statusLine = document.createElement("div");
+      statusLine.className = "status-line";
+      statusLine.textContent = "思考中…";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble streaming";
+      bubble.textContent = "";
+
+      wrap.appendChild(label);
+      wrap.appendChild(statusLine);
+      wrap.appendChild(bubble);
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+
+      return { wrap, statusLine, bubble };
+    }
+
+    function appendMetaToBubble(bubble, meta) {
+      bubble.classList.remove("streaming");
+
+      const metaEl = document.createElement("div");
+      metaEl.className = "meta";
+      const routeLabel = ROUTE_LABELS[meta.route] || meta.route;
+      const confidence = Number(meta.confidence) || 0;
+      metaEl.innerHTML = `
+        <span>路由：${routeLabel}</span>
+        <span>置信度：${(confidence * 100).toFixed(0)}%</span>
+        <span>耗时：${meta.latency_ms} ms</span>
+        ${meta.supplement_rounds > 0 ? `<span>补充检索：${meta.supplement_rounds} 轮</span>` : ""}
+        ${meta.need_human_confirm ? '<span class="warn">建议人工确认</span>' : ""}
+      `;
+      bubble.appendChild(metaEl);
+
+      if (meta.rewritten_query && meta.rewritten_query !== meta.answer) {
+        const rw = document.createElement("div");
+        rw.className = "citations";
+        rw.textContent = `改写检索：${meta.rewritten_query}`;
+        bubble.appendChild(rw);
+      }
+
+      if (meta.citations && meta.citations.length) {
+        const cites = document.createElement("div");
+        cites.className = "citations";
+        cites.innerHTML =
+          "引用：" +
+          meta.citations
+            .slice(0, 6)
+            .map((c) => `<code>${escapeHtml(c)}</code>`)
+            .join("");
+        bubble.appendChild(cites);
+      }
+    }
+
+    function appendMessage(role, content, meta) {
+      if (emptyHint) emptyHint.style.display = "none";
+
+      const wrap = document.createElement("div");
+      wrap.className = `msg ${role}`;
+
+      const label = document.createElement("div");
+      label.className = "msg-label";
+      label.textContent = role === "user" ? "你" : "助手";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = content;
+
+      wrap.appendChild(label);
+      wrap.appendChild(bubble);
+
+      if (meta && role === "bot") {
+        appendMetaToBubble(bubble, { ...meta, answer: content });
+      }
+
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function parseSseChunk(buffer) {
+      const events = [];
+      const parts = buffer.split("\n\n");
+      const rest = parts.pop() || "";
+      for (const part of parts) {
+        for (const line of part.split("\n")) {
+          if (line.startsWith("data: ")) {
+            try {
+              events.push(JSON.parse(line.slice(6)));
+            } catch {
+              /* ignore malformed */
+            }
+          }
+        }
+      }
+      return { events, rest };
+    }
+
+    async function ask(query) {
+      const q = query.trim();
+      if (!q || loading) return;
+
+      hideError();
+      appendMessage("user", q);
+      history.push({ role: "user", content: q });
+      setLoading(true);
+      queryInput.value = "";
+      queryInput.style.height = "auto";
+
+      const { statusLine, bubble } = createBotMessageShell();
+      let answerText = "";
+
+      const body = {
+        query: q,
+        history: history.slice(0, -1),
+        fast_mode: document.getElementById("fastMode").checked,
+        max_supplement_rounds: 1,
+        use_llm_planner: document.getElementById("llmPlanner").checked || null,
+        use_llm_decompose: document.getElementById("llmDecompose").checked || null,
+      };
+
+      try {
+        const res = await fetch(`${apiBase()}/ask/stream`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parsed = parseSseChunk(buffer);
+          buffer = parsed.rest;
+
+          for (const event of parsed.events) {
+            if (event.type === "status") {
+              statusLine.textContent = event.message || "";
+            } else if (event.type === "token") {
+              statusLine.textContent = "";
+              answerText += event.text || "";
+              bubble.textContent = answerText;
+              chatEl.scrollTop = chatEl.scrollHeight;
+            } else if (event.type === "done") {
+              statusLine.textContent = "";
+              if (event.answer && !answerText) {
+                answerText = event.answer;
+                bubble.textContent = answerText;
+              }
+              appendMetaToBubble(bubble, event);
+              history.push({ role: "assistant", content: answerText || event.answer });
+            } else if (event.type === "error") {
+              throw new Error(event.message || "stream error");
+            }
+          }
+        }
+
+        if (!answerText) {
+          bubble.textContent = "未收到回答，请重试。";
+          bubble.classList.remove("streaming");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        showError(`请求失败：${msg}`);
+        statusLine.textContent = "";
+        bubble.classList.remove("streaming");
+        bubble.textContent =
+          "抱歉，流式请求失败。请确认 API 服务已启动（uvicorn api.server:app --port 8000）。";
+      } finally {
+        setLoading(false);
+        queryInput.focus();
+      }
+    }
+
+    function initExamples() {
+      EXAMPLES.forEach((text) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chip";
+        btn.textContent = text;
+        btn.addEventListener("click", () => {
+          queryInput.value = text;
+          ask(text);
+        });
+        exampleChips.appendChild(btn);
+      });
+    }
+
+    sendBtn.addEventListener("click", () => ask(queryInput.value));
+
+    queryInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        ask(queryInput.value);
+      }
+    });
+
+    queryInput.addEventListener("input", () => {
+      queryInput.style.height = "auto";
+      queryInput.style.height = Math.min(queryInput.scrollHeight, 140) + "px";
+    });
+
+    clearBtn.addEventListener("click", () => {
+      history = [];
+      chatEl.innerHTML = "";
+      chatEl.appendChild(emptyHint);
+      emptyHint.style.display = "";
+      hideError();
+      queryInput.value = "";
+      queryInput.style.height = "auto";
+    });
+
+    initExamples();
+    checkHealth();
+    queryInput.focus();
+  </script>
+</body>
+</html>

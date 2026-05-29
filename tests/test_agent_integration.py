@@ -127,6 +127,7 @@ class TestAgentIntegration(unittest.TestCase):
         rewrite = (resp.plan or {}).get("rewrite") or {}
         self.assertEqual(rewrite.get("rewriter_type"), "rule_fallback")
         self.assertIn("rewrite_query_rule_fallback", resp.tools_used)
+        self.assertIn("decompose_query", resp.tools_used)
 
     def test_manual_query_single_retrieve(self) -> None:
         resp = self.executor.run(

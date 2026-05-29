@@ -1,7 +1,7 @@
 """
 Agent 工作流：优先 LangGraph，不可用时回退到 agent.executor.AgentExecutor。
 
-Query Decomposition 流水线：
+流水线：
   rewrite_query -> plan_query -> decompose_query -> retrieve (per sub_query)
   -> judge_evidence -> [supplement_search -> judge_evidence]* -> generate_answer -> log_trace
 """
@@ -17,7 +17,7 @@ from agent.evidence import judge_evidence
 from agent.executor import AgentExecutor
 from agent.hits import merge_hits
 from agent.planner import plan_query
-from agent.retrieve import retrieve_sub_queries
+from agent.retrieve import retrieve_for_plan, retrieve_sub_queries
 from agent.state import AgentResponse, PlanResult
 from agent.tools import RagTools
 from rag.rerank import RerankHit
@@ -125,6 +125,15 @@ class AgentWorkflow:
             use_llm_decompose=use_llm_decompose,
             use_llm_rewrite=use_llm_rewrite,
         )
+
+    def run_stream(
+        self,
+        query: str,
+        history: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ):
+        """流式问答（统一走 AgentExecutor，与 LangGraph 非流式 run 并行存在）。"""
+        yield from self._fallback.run_stream(query, history, **kwargs)
 
     def _run_langgraph(
         self,
@@ -275,7 +284,10 @@ class AgentWorkflow:
             use_llm_planner=state.get("use_llm_planner"),
         )
         tools_used.append("plan_query")
-        return {"plan": plan.to_dict(), "tools_used": tools_used}
+        plan_dict = plan.to_dict()
+        if state.get("rewrite"):
+            plan_dict["rewrite"] = state["rewrite"]
+        return {"plan": plan_dict, "tools_used": tools_used}
 
     def _node_decompose(self, state: WorkflowState) -> WorkflowState:
         tools_used = list(state.get("tools_used") or [])
@@ -368,10 +380,9 @@ class AgentWorkflow:
             state.get("supplement_queries") or ev.get("supplement_queries") or []
         )
         hits = list(state.get("hits") or [])
-        from agent.decompose import SubQuery
-
-        sub_queries = [SubQuery(text=sq) for sq in supplement_queries]
-        extra, _ = retrieve_sub_queries(tools, plan, sub_queries, tools_used)
+        extra, _ = retrieve_for_plan(
+            tools, plan, tools_used, queries=supplement_queries
+        )
         merged = merge_hits(hits, extra)
         rounds = int(state.get("supplement_rounds") or 0) + 1
         return {
@@ -392,6 +403,8 @@ class AgentWorkflow:
         pipeline_route = state.get("pipeline_route") or "balanced"
         q = plan.rewritten_query
         sub_query_texts = list((state.get("plan") or {}).get("sub_queries") or [])
+        if not sub_query_texts:
+            sub_query_texts = [q]
 
         if skip_llm or not hits:
             if hits:

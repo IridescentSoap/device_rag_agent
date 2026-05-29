@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from typing import Any
 
 from agent.context import rewrite_query_with_meta
@@ -11,7 +12,7 @@ from agent.evidence import judge_evidence
 from agent.hits import merge_hits
 from agent.monitor import log_trace
 from agent.planner import plan_query
-from agent.retrieve import retrieve_sub_queries
+from agent.retrieve import retrieve_for_plan, retrieve_sub_queries
 from agent.state import AgentResponse, PlanResult
 from agent.fast_mode import resolve_fast_mode
 from agent.tools import RagTools
@@ -39,10 +40,9 @@ class AgentExecutor:
         supplement_queries: list[str],
         tools_used: list[str],
     ) -> list[RerankHit]:
-        from agent.decompose import SubQuery
-
-        sub_queries = [SubQuery(text=sq) for sq in supplement_queries]
-        hits, _ = retrieve_sub_queries(tools, plan, sub_queries, tools_used)
+        hits, _ = retrieve_for_plan(
+            tools, plan, tools_used, queries=supplement_queries
+        )
         return hits
 
     def run(
@@ -54,8 +54,8 @@ class AgentExecutor:
         fast_mode: bool | None = None,
         max_supplement_rounds: int = 1,
         use_llm_planner: bool | None = None,
-        use_llm_decompose: bool | None = None,
         use_llm_rewrite: bool | None = None,
+        use_llm_decompose: bool | None = None,
     ) -> AgentResponse:
         tools = self._tools_for_run(fast_mode)
         t0 = time.perf_counter()
@@ -107,6 +107,9 @@ class AgentExecutor:
             self._log(query, resp, tools=tools)
             return resp
 
+        plan_dict = plan.to_dict()
+        plan_dict["rewrite"] = rewrite.to_dict()
+
         # 3) decompose
         decompose = decompose_query(
             plan.rewritten_query,
@@ -116,12 +119,10 @@ class AgentExecutor:
             use_llm_decompose=use_llm_decompose,
         )
         tools_used.append("decompose_query")
-        plan_dict = plan.to_dict()
         plan_dict["sub_queries"] = [sq.text for sq in decompose.sub_queries]
         plan_dict["decompose"] = decompose.to_dict()
-        plan_dict["rewrite"] = rewrite.to_dict()
 
-        # 4) retrieve（对每个原子子问题分别检索后合并）
+        # 4) retrieve（遍历 decompose 原子子问题分别检索后合并）
         hits, pipeline_route = retrieve_sub_queries(
             tools, plan, decompose.sub_queries, tools_used
         )
@@ -203,6 +204,195 @@ class AgentExecutor:
         )
         self._log(query, resp, history=history, tools=tools)
         return resp
+
+    @staticmethod
+    def _yield_text_tokens(text: str) -> Iterator[dict[str, str]]:
+        for ch in text:
+            yield {"type": "token", "text": ch}
+
+    def run_stream(
+        self,
+        query: str,
+        history: list[dict[str, Any]] | None = None,
+        *,
+        skip_llm: bool = False,
+        fast_mode: bool | None = None,
+        max_supplement_rounds: int = 1,
+        use_llm_planner: bool | None = None,
+        use_llm_rewrite: bool | None = None,
+        use_llm_decompose: bool | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """流式执行 Agent：检索阶段推送 status，生成阶段推送 token，结束时推送 done。"""
+        tools = self._tools_for_run(fast_mode)
+        t0 = time.perf_counter()
+        tools_used: list[str] = []
+        if tools.fast_mode:
+            tools_used.append("fast_mode")
+
+        yield {"type": "status", "message": "正在改写问题…"}
+        rewrite = rewrite_query_with_meta(
+            query, history, use_llm_rewrite=use_llm_rewrite
+        )
+        rewritten = rewrite.query
+        tools_used.append("rewrite_query")
+        if rewrite.rewriter_type == "llm":
+            tools_used.append("rewrite_query_llm")
+        elif rewrite.rewriter_type == "rule_fallback":
+            tools_used.append("rewrite_query_rule_fallback")
+
+        yield {"type": "status", "message": "正在规划查询…"}
+        plan = plan_query(
+            query, history, rewritten_query=rewritten, use_llm_planner=use_llm_planner
+        )
+        tools_used.append("plan_query")
+
+        if plan.route == "insufficient_evidence":
+            ev = judge_evidence([], pipeline_route="balanced", plan_confidence=plan.confidence)
+            answer = (
+                "您的问题信息不足，请补充设备/系统名称、故障现象或想查阅的手册主题，"
+                "以便检索手册与历史案例。"
+            )
+            yield from self._yield_text_tokens(answer)
+            latency = int((time.perf_counter() - t0) * 1000)
+            resp = AgentResponse(
+                answer=answer,
+                route=plan.route,
+                rewritten_query=rewritten,
+                tools_used=tools_used,
+                citations=[],
+                confidence=ev.confidence,
+                need_human_confirm=True,
+                latency_ms=latency,
+                fast_mode=tools.fast_mode,
+                plan={**plan.to_dict(), "rewrite": rewrite.to_dict()},
+                evidence=ev.to_dict(),
+                supplement_rounds=0,
+            )
+            self._log(query, resp, history=history, tools=tools)
+            yield {"type": "done", **resp.to_dict()}
+            return
+
+        plan_dict = plan.to_dict()
+        plan_dict["rewrite"] = rewrite.to_dict()
+
+        yield {"type": "status", "message": "正在拆解子问题…"}
+        decompose = decompose_query(
+            plan.rewritten_query,
+            route=plan.route,
+            needs_manual=plan.needs_manual,
+            needs_log=plan.needs_log,
+            use_llm_decompose=use_llm_decompose,
+        )
+        tools_used.append("decompose_query")
+        plan_dict["sub_queries"] = [sq.text for sq in decompose.sub_queries]
+        plan_dict["decompose"] = decompose.to_dict()
+
+        yield {"type": "status", "message": "正在检索知识库…"}
+        hits, pipeline_route = retrieve_sub_queries(
+            tools, plan, decompose.sub_queries, tools_used
+        )
+
+        q = plan.rewritten_query
+        sub_query_texts = [sq.text for sq in decompose.sub_queries]
+
+        ev = judge_evidence(
+            hits,
+            pipeline_route=pipeline_route,
+            plan_confidence=plan.confidence,
+            query=q,
+            route=plan.route,
+        )
+        tools_used.append("judge_evidence")
+
+        supplement_rounds = 0
+        if (
+            max_supplement_rounds > 0
+            and ev.supplement_queries
+            and (ev.need_human_confirm or ev.missing_aspects)
+        ):
+            for _ in range(max_supplement_rounds):
+                supplement_rounds += 1
+                yield {"type": "status", "message": "证据不足，正在补充检索…"}
+                extra = self._supplement_retrieve(
+                    tools, plan, ev.supplement_queries, tools_used
+                )
+                hits = merge_hits(hits, extra)
+                ev = judge_evidence(
+                    hits,
+                    pipeline_route=pipeline_route,
+                    plan_confidence=plan.confidence,
+                    query=q,
+                    route=plan.route,
+                )
+                tools_used.append("judge_evidence")
+                if not ev.missing_aspects and not ev.need_human_confirm:
+                    break
+
+        answer = ""
+        cites: list[str] = []
+
+        if skip_llm or not hits:
+            if hits:
+                answer = (
+                    f"已检索到 {len(hits)} 条相关片段（路由={pipeline_route}，"
+                    f"原子子问题={len(sub_query_texts)}），"
+                    "未调用 LLM 生成。请配置 LLM_API_KEY 后重试完整回答。"
+                )
+            else:
+                answer = (
+                    "未召回到足够相关的参考资料。"
+                    + ("；".join(ev.missing_aspects) if ev.missing_aspects else "")
+                )
+            cites = ev.citations
+            yield from self._yield_text_tokens(answer)
+        else:
+            yield {"type": "status", "message": "正在生成回答…"}
+            tools_used.append("generate_answer")
+            prepared = tools.prepare_answer_messages(
+                q,
+                hits,
+                agent_route=plan.route,
+                pipeline_route=pipeline_route,
+                sub_queries=sub_query_texts if len(sub_query_texts) > 1 else None,
+            )
+            if prepared is None:
+                answer = (
+                    "未找到足够相关的参考资料，无法给出可靠结论。"
+                    "请补充设备名称、故障现象或手册章节。"
+                )
+                cites = []
+                yield from self._yield_text_tokens(answer)
+            else:
+                _system, _user, cites = prepared
+                parts: list[str] = []
+                for token in tools.iter_answer_tokens(
+                    q,
+                    hits,
+                    agent_route=plan.route,
+                    pipeline_route=pipeline_route,
+                    sub_queries=sub_query_texts if len(sub_query_texts) > 1 else None,
+                ):
+                    parts.append(token)
+                    yield {"type": "token", "text": token}
+                answer = "".join(parts).strip()
+
+        latency = int((time.perf_counter() - t0) * 1000)
+        resp = AgentResponse(
+            answer=answer,
+            route=plan.route,
+            rewritten_query=rewritten,
+            tools_used=tools_used,
+            citations=cites,
+            confidence=ev.confidence,
+            need_human_confirm=ev.need_human_confirm or not cites,
+            latency_ms=latency,
+            fast_mode=tools.fast_mode,
+            plan=plan_dict,
+            evidence=ev.to_dict(),
+            supplement_rounds=supplement_rounds,
+        )
+        self._log(query, resp, history=history, tools=tools)
+        yield {"type": "done", **resp.to_dict()}
 
     @staticmethod
     def _log(
