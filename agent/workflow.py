@@ -1,9 +1,9 @@
 """
 Agent 工作流：优先 LangGraph，不可用时回退到 agent.executor.AgentExecutor。
 
-流程与 executor 一致：
-  rewrite_query -> plan_query -> retrieve -> judge_evidence
-  -> [supplement_search -> judge_evidence]* -> generate_answer -> log_trace
+Query Decomposition 流水线：
+  rewrite_query -> plan_query -> decompose_query -> retrieve (per sub_query)
+  -> judge_evidence -> [supplement_search -> judge_evidence]* -> generate_answer -> log_trace
 """
 
 from __future__ import annotations
@@ -11,11 +11,13 @@ from __future__ import annotations
 import time
 from typing import Any, Literal, TypedDict
 
-from agent.context import rewrite_query
+from agent.context import rewrite_query_with_meta
+from agent.decompose import decompose_query
 from agent.evidence import judge_evidence
-from agent.executor import AgentExecutor, _merge_hits
-from agent.fast_mode import resolve_fast_mode
+from agent.executor import AgentExecutor
+from agent.hits import merge_hits
 from agent.planner import plan_query
+from agent.retrieve import retrieve_sub_queries
 from agent.state import AgentResponse, PlanResult
 from agent.tools import RagTools
 from rag.rerank import RerankHit
@@ -45,7 +47,9 @@ class WorkflowState(TypedDict, total=False):
     t0: float
     tools_used: list[str]
     rewritten_query: str
+    rewrite: dict[str, Any]
     plan: dict[str, Any]
+    decompose: dict[str, Any]
     hits: list[RerankHit]
     pipeline_route: str
     evidence: dict[str, Any]
@@ -56,6 +60,8 @@ class WorkflowState(TypedDict, total=False):
     max_supplement_rounds: int
     supplement_queries: list[str]
     use_llm_planner: bool | None
+    use_llm_decompose: bool | None
+    use_llm_rewrite: bool | None
 
 
 def _plan_from_dict(d: dict[str, Any]) -> PlanResult:
@@ -95,6 +101,8 @@ class AgentWorkflow:
         fast_mode: bool | None = None,
         max_supplement_rounds: int = 1,
         use_llm_planner: bool | None = None,
+        use_llm_decompose: bool | None = None,
+        use_llm_rewrite: bool | None = None,
     ) -> AgentResponse:
         if self._graph is None:
             return self._fallback.run(
@@ -104,6 +112,8 @@ class AgentWorkflow:
                 fast_mode=fast_mode,
                 max_supplement_rounds=max_supplement_rounds,
                 use_llm_planner=use_llm_planner,
+                use_llm_decompose=use_llm_decompose,
+                use_llm_rewrite=use_llm_rewrite,
             )
         return self._run_langgraph(
             query,
@@ -112,6 +122,8 @@ class AgentWorkflow:
             fast_mode=fast_mode,
             max_supplement_rounds=max_supplement_rounds,
             use_llm_planner=use_llm_planner,
+            use_llm_decompose=use_llm_decompose,
+            use_llm_rewrite=use_llm_rewrite,
         )
 
     def _run_langgraph(
@@ -123,6 +135,8 @@ class AgentWorkflow:
         fast_mode: bool | None,
         max_supplement_rounds: int,
         use_llm_planner: bool | None,
+        use_llm_decompose: bool | None,
+        use_llm_rewrite: bool | None,
     ) -> AgentResponse:
         tools = self._fallback._tools_for_run(fast_mode)
         self._current_tools = tools
@@ -142,6 +156,8 @@ class AgentWorkflow:
                 "supplement_rounds": 0,
                 "supplement_queries": [],
                 "use_llm_planner": use_llm_planner,
+                "use_llm_decompose": use_llm_decompose,
+                "use_llm_rewrite": use_llm_rewrite,
             }
             if tools.fast_mode:
                 init["tools_used"] = ["fast_mode"]
@@ -184,6 +200,7 @@ class AgentWorkflow:
         graph = StateGraph(WorkflowState)
         graph.add_node("rewrite_query", self._node_rewrite)
         graph.add_node("plan_query", self._node_plan)
+        graph.add_node("decompose_query", self._node_decompose)
         graph.add_node("insufficient", self._node_insufficient)
         graph.add_node("retrieve", self._node_retrieve)
         graph.add_node("judge_evidence", self._node_judge)
@@ -195,9 +212,10 @@ class AgentWorkflow:
         graph.add_conditional_edges(
             "plan_query",
             self._route_after_plan,
-            {"insufficient": "insufficient", "retrieve": "retrieve"},
+            {"insufficient": "insufficient", "decompose": "decompose_query"},
         )
         graph.add_edge("insufficient", END)
+        graph.add_edge("decompose_query", "retrieve")
         graph.add_edge("retrieve", "judge_evidence")
         graph.add_conditional_edges(
             "judge_evidence",
@@ -213,7 +231,7 @@ class AgentWorkflow:
         plan = state.get("plan") or {}
         if plan.get("route") == "insufficient_evidence":
             return "insufficient"
-        return "retrieve"
+        return "decompose"
 
     @staticmethod
     def _route_after_judge(state: WorkflowState) -> str:
@@ -232,9 +250,21 @@ class AgentWorkflow:
 
     def _node_rewrite(self, state: WorkflowState) -> WorkflowState:
         tools_used = list(state.get("tools_used") or [])
-        rewritten = rewrite_query(state["query"], state.get("history"))
+        rewrite = rewrite_query_with_meta(
+            state["query"],
+            state.get("history"),
+            use_llm_rewrite=state.get("use_llm_rewrite"),
+        )
         tools_used.append("rewrite_query")
-        return {"rewritten_query": rewritten, "tools_used": tools_used}
+        if rewrite.rewriter_type == "llm":
+            tools_used.append("rewrite_query_llm")
+        elif rewrite.rewriter_type == "rule_fallback":
+            tools_used.append("rewrite_query_rule_fallback")
+        return {
+            "rewritten_query": rewrite.query,
+            "rewrite": rewrite.to_dict(),
+            "tools_used": tools_used,
+        }
 
     def _node_plan(self, state: WorkflowState) -> WorkflowState:
         tools_used = list(state.get("tools_used") or [])
@@ -247,9 +277,29 @@ class AgentWorkflow:
         tools_used.append("plan_query")
         return {"plan": plan.to_dict(), "tools_used": tools_used}
 
+    def _node_decompose(self, state: WorkflowState) -> WorkflowState:
+        tools_used = list(state.get("tools_used") or [])
+        plan = _plan_from_dict(state["plan"])  # type: ignore[arg-type]
+        decompose = decompose_query(
+            plan.rewritten_query,
+            route=plan.route,
+            needs_manual=plan.needs_manual,
+            needs_log=plan.needs_log,
+            use_llm_decompose=state.get("use_llm_decompose"),
+        )
+        tools_used.append("decompose_query")
+        plan_dict = dict(state["plan"])
+        plan_dict["sub_queries"] = [sq.text for sq in decompose.sub_queries]
+        plan_dict["decompose"] = decompose.to_dict()
+        if state.get("rewrite"):
+            plan_dict["rewrite"] = state["rewrite"]
+        return {
+            "plan": plan_dict,
+            "decompose": decompose.to_dict(),
+            "tools_used": tools_used,
+        }
+
     def _node_insufficient(self, state: WorkflowState) -> WorkflowState:
-        tools = self._current_tools
-        assert tools is not None
         plan = _plan_from_dict(state["plan"])  # type: ignore[arg-type]
         tools_used = list(state.get("tools_used") or [])
         ev = judge_evidence([], pipeline_route="balanced", plan_confidence=plan.confidence)
@@ -270,22 +320,21 @@ class AgentWorkflow:
         assert tools is not None
         tools_used = list(state.get("tools_used") or [])
         plan = _plan_from_dict(state["plan"])  # type: ignore[arg-type]
-        q = plan.rewritten_query
-        hits: list[RerankHit] = []
-        pipeline_route = "balanced"
+        decompose_dict = state.get("decompose") or (state.get("plan") or {}).get(
+            "decompose"
+        )
+        from agent.decompose import SubQuery
 
-        if plan.route == "manual_query":
-            hits = tools.search_manual(q)
-            tools_used.append("search_manual")
-            pipeline_route = "manual_heavy"
-        elif plan.route == "log_case_query":
-            hits = tools.search_logs(q)
-            tools_used.append("search_logs")
-            pipeline_route = "log_heavy"
-        else:
-            hits, pipeline_route = tools.hybrid_search(q)
-            tools_used.append("hybrid_search")
-
+        sub_queries = [
+            SubQuery(
+                text=sq["text"],
+                aspect=sq.get("aspect", "general"),  # type: ignore[arg-type]
+                prefer_manual=bool(sq.get("prefer_manual")),
+                prefer_log=bool(sq.get("prefer_log")),
+            )
+            for sq in (decompose_dict or {}).get("sub_queries") or []
+        ]
+        hits, pipeline_route = retrieve_sub_queries(tools, plan, sub_queries, tools_used)
         return {
             "hits": hits,
             "pipeline_route": pipeline_route,
@@ -319,23 +368,11 @@ class AgentWorkflow:
             state.get("supplement_queries") or ev.get("supplement_queries") or []
         )
         hits = list(state.get("hits") or [])
-        new_hits: list[RerankHit] = []
-        manual_only = plan.needs_manual and not plan.needs_log
-        log_only = plan.needs_log and not plan.needs_manual
+        from agent.decompose import SubQuery
 
-        for sq in supplement_queries:
-            if manual_only:
-                new_hits.extend(tools.search_manual(sq))
-                tools_used.append("supplement_search_manual")
-            elif log_only:
-                new_hits.extend(tools.search_logs(sq))
-                tools_used.append("supplement_search_logs")
-            else:
-                batch, _ = tools.hybrid_search(sq)
-                new_hits.extend(batch)
-                tools_used.append("supplement_search_hybrid")
-
-        merged = _merge_hits(hits, new_hits)
+        sub_queries = [SubQuery(text=sq) for sq in supplement_queries]
+        extra, _ = retrieve_sub_queries(tools, plan, sub_queries, tools_used)
+        merged = merge_hits(hits, extra)
         rounds = int(state.get("supplement_rounds") or 0) + 1
         return {
             "hits": merged,
@@ -354,11 +391,13 @@ class AgentWorkflow:
         skip_llm = bool(state.get("skip_llm"))
         pipeline_route = state.get("pipeline_route") or "balanced"
         q = plan.rewritten_query
+        sub_query_texts = list((state.get("plan") or {}).get("sub_queries") or [])
 
         if skip_llm or not hits:
             if hits:
                 answer = (
-                    f"已检索到 {len(hits)} 条相关片段（路由={pipeline_route}），"
+                    f"已检索到 {len(hits)} 条相关片段（路由={pipeline_route}，"
+                    f"原子子问题={len(sub_query_texts)}），"
                     "未调用 LLM 生成。请配置 LLM_API_KEY 后重试完整回答。"
                 )
             else:
@@ -373,6 +412,7 @@ class AgentWorkflow:
                 hits,
                 agent_route=plan.route,
                 pipeline_route=pipeline_route,
+                sub_queries=sub_query_texts if len(sub_query_texts) > 1 else None,
             )
             tools_used.append("generate_answer")
 

@@ -70,10 +70,23 @@ def log_chunk_body_for_prompt(c: ChunkRecord) -> str:
     return "\n\n".join(parts)
 
 
-def build_user_message(query: str, context_blocks: list[str]) -> str:
+def build_user_message(
+    query: str,
+    context_blocks: list[str],
+    *,
+    sub_queries: list[str] | None = None,
+) -> str:
     ctx = "\n\n---\n\n".join(context_blocks)
-    return f"""用户问题：
+    if sub_queries and len(sub_queries) > 1:
+        sub_part = "\n".join(f"{i + 1}. {sq}" for i, sq in enumerate(sub_queries))
+        question_block = f"""用户问题：
 {query}
+
+（该问题已拆解为以下原子子问题，请分别作答后整合为一份完整回复）
+{sub_part}"""
+    else:
+        question_block = f"用户问题：\n{query}"
+    return f"""{question_block}
 
 参考资料：
 {ctx}

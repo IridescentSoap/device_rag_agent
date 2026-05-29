@@ -51,6 +51,16 @@ def main() -> None:
         action="store_true",
         help="启用 LLM Planner（失败自动回退规则 Planner）",
     )
+    p.add_argument(
+        "--llm-decompose",
+        action="store_true",
+        help="启用 LLM Query Decomposition（失败自动回退规则拆解）",
+    )
+    p.add_argument(
+        "--llm-rewrite",
+        action="store_true",
+        help="启用 LLM 多轮追问改写（失败自动回退规则改写）",
+    )
     args = p.parse_args()
 
     from agent.tools import RagTools
@@ -71,6 +81,8 @@ def main() -> None:
         fast_mode=args.fast,
         max_supplement_rounds=args.max_supplement_rounds,
         use_llm_planner=args.llm_planner,
+        use_llm_decompose=args.llm_decompose,
+        use_llm_rewrite=args.llm_rewrite,
     )
     out = resp.to_dict()
 

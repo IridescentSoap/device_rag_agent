@@ -301,13 +301,7 @@ def rule_plan_query(
     if route == "insufficient_evidence":
         needs_manual = needs_log = False
 
-    sub: list[str] = [q]
-    if needs_manual and needs_log:
-        sub = [q, f"手册：{q}", f"日志案例：{q}"]
-    elif needs_manual:
-        sub = [q]
-    elif needs_log:
-        sub = [q]
+    sub: list[str] = []
 
     conf = 0.85
     if route == "insufficient_evidence":

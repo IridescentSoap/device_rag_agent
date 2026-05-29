@@ -5,26 +5,17 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from agent.context import rewrite_query
+from agent.context import rewrite_query_with_meta
+from agent.decompose import decompose_query
 from agent.evidence import judge_evidence
+from agent.hits import merge_hits
 from agent.monitor import log_trace
 from agent.planner import plan_query
+from agent.retrieve import retrieve_sub_queries
 from agent.state import AgentResponse, PlanResult
 from agent.fast_mode import resolve_fast_mode
 from agent.tools import RagTools
 from rag.rerank import RerankHit
-
-
-def _merge_hits(*hit_lists: list[RerankHit]) -> list[RerankHit]:
-    """按 chunk_id 去重，保留更高 score，最终按 score 降序。"""
-    by_id: dict[str, RerankHit] = {}
-    for batch in hit_lists:
-        for h in batch:
-            cid = h.chunk.chunk_id
-            prev = by_id.get(cid)
-            if prev is None or float(h.score) > float(prev.score):
-                by_id[cid] = h
-    return sorted(by_id.values(), key=lambda x: float(x.score), reverse=True)
 
 
 class AgentExecutor:
@@ -48,22 +39,11 @@ class AgentExecutor:
         supplement_queries: list[str],
         tools_used: list[str],
     ) -> list[RerankHit]:
-        new_hits: list[RerankHit] = []
-        manual_only = plan.needs_manual and not plan.needs_log
-        log_only = plan.needs_log and not plan.needs_manual
+        from agent.decompose import SubQuery
 
-        for sq in supplement_queries:
-            if manual_only:
-                new_hits.extend(tools.search_manual(sq))
-                tools_used.append("supplement_search_manual")
-            elif log_only:
-                new_hits.extend(tools.search_logs(sq))
-                tools_used.append("supplement_search_logs")
-            else:
-                batch, _ = tools.hybrid_search(sq)
-                new_hits.extend(batch)
-                tools_used.append("supplement_search_hybrid")
-        return new_hits
+        sub_queries = [SubQuery(text=sq) for sq in supplement_queries]
+        hits, _ = retrieve_sub_queries(tools, plan, sub_queries, tools_used)
+        return hits
 
     def run(
         self,
@@ -74,6 +54,8 @@ class AgentExecutor:
         fast_mode: bool | None = None,
         max_supplement_rounds: int = 1,
         use_llm_planner: bool | None = None,
+        use_llm_decompose: bool | None = None,
+        use_llm_rewrite: bool | None = None,
     ) -> AgentResponse:
         tools = self._tools_for_run(fast_mode)
         t0 = time.perf_counter()
@@ -85,8 +67,15 @@ class AgentExecutor:
         supplement_rounds = 0
 
         # 1) rewrite
-        rewritten = rewrite_query(query, history)
+        rewrite = rewrite_query_with_meta(
+            query, history, use_llm_rewrite=use_llm_rewrite
+        )
+        rewritten = rewrite.query
         tools_used.append("rewrite_query")
+        if rewrite.rewriter_type == "llm":
+            tools_used.append("rewrite_query_llm")
+        elif rewrite.rewriter_type == "rule_fallback":
+            tools_used.append("rewrite_query_rule_fallback")
 
         # 2) plan
         plan = plan_query(
@@ -118,21 +107,29 @@ class AgentExecutor:
             self._log(query, resp, tools=tools)
             return resp
 
-        # 3) retrieve
-        q = plan.rewritten_query
-        if plan.route == "manual_query":
-            hits = tools.search_manual(q)
-            tools_used.append("search_manual")
-            pipeline_route = "manual_heavy"
-        elif plan.route == "log_case_query":
-            hits = tools.search_logs(q)
-            tools_used.append("search_logs")
-            pipeline_route = "log_heavy"
-        else:
-            hits, pipeline_route = tools.hybrid_search(q)
-            tools_used.append("hybrid_search")
+        # 3) decompose
+        decompose = decompose_query(
+            plan.rewritten_query,
+            route=plan.route,
+            needs_manual=plan.needs_manual,
+            needs_log=plan.needs_log,
+            use_llm_decompose=use_llm_decompose,
+        )
+        tools_used.append("decompose_query")
+        plan_dict = plan.to_dict()
+        plan_dict["sub_queries"] = [sq.text for sq in decompose.sub_queries]
+        plan_dict["decompose"] = decompose.to_dict()
+        plan_dict["rewrite"] = rewrite.to_dict()
 
-        # 4) judge evidence
+        # 4) retrieve（对每个原子子问题分别检索后合并）
+        hits, pipeline_route = retrieve_sub_queries(
+            tools, plan, decompose.sub_queries, tools_used
+        )
+
+        q = plan.rewritten_query
+        sub_query_texts = [sq.text for sq in decompose.sub_queries]
+
+        # 5) judge evidence
         ev = judge_evidence(
             hits,
             pipeline_route=pipeline_route,
@@ -142,7 +139,7 @@ class AgentExecutor:
         )
         tools_used.append("judge_evidence")
 
-        # 4b) supplement retrieval
+        # 5b) supplement retrieval
         if (
             max_supplement_rounds > 0
             and ev.supplement_queries
@@ -153,7 +150,7 @@ class AgentExecutor:
                 extra = self._supplement_retrieve(
                     tools, plan, ev.supplement_queries, tools_used
                 )
-                hits = _merge_hits(hits, extra)
+                hits = merge_hits(hits, extra)
                 ev = judge_evidence(
                     hits,
                     pipeline_route=pipeline_route,
@@ -165,11 +162,12 @@ class AgentExecutor:
                 if not ev.missing_aspects and not ev.need_human_confirm:
                     break
 
-        # 5) generate
+        # 6) generate（整合各子问题检索结果）
         if skip_llm or not hits:
             if hits:
                 answer = (
-                    f"已检索到 {len(hits)} 条相关片段（路由={pipeline_route}），"
+                    f"已检索到 {len(hits)} 条相关片段（路由={pipeline_route}，"
+                    f"原子子问题={len(sub_query_texts)}），"
                     "未调用 LLM 生成。请配置 LLM_API_KEY 后重试完整回答。"
                 )
             else:
@@ -184,6 +182,7 @@ class AgentExecutor:
                 hits,
                 agent_route=plan.route,
                 pipeline_route=pipeline_route,
+                sub_queries=sub_query_texts if len(sub_query_texts) > 1 else None,
             )
             tools_used.append("generate_answer")
 
@@ -198,7 +197,7 @@ class AgentExecutor:
             need_human_confirm=ev.need_human_confirm or not cites,
             latency_ms=latency,
             fast_mode=tools.fast_mode,
-            plan=plan.to_dict(),
+            plan=plan_dict,
             evidence=ev.to_dict(),
             supplement_rounds=supplement_rounds,
         )
@@ -225,6 +224,13 @@ class AgentExecutor:
             "history_turns": len(history or []),
             "supplement_rounds": resp.supplement_rounds,
             "supplement_queries": (resp.evidence or {}).get("supplement_queries", []),
+            "sub_queries": (resp.plan or {}).get("sub_queries", []),
+            "decomposer_type": ((resp.plan or {}).get("decompose") or {}).get(
+                "decomposer_type"
+            ),
+            "rewriter_type": ((resp.plan or {}).get("rewrite") or {}).get(
+                "rewriter_type"
+            ),
         }
         if tools and tools.fast_mode:
             entry["fast_config"] = tools.mode_config()

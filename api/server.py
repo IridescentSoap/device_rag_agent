@@ -53,6 +53,8 @@ class AskRequest(BaseModel):
     fast_mode: bool = False
     max_supplement_rounds: int = 1
     use_llm_planner: bool | None = None
+    use_llm_decompose: bool | None = None
+    use_llm_rewrite: bool | None = None
 
 
 class AskResponse(BaseModel):
@@ -88,6 +90,8 @@ def ask(req: AskRequest) -> AskResponse:
         fast_mode=req.fast_mode,
         max_supplement_rounds=req.max_supplement_rounds,
         use_llm_planner=req.use_llm_planner,
+        use_llm_decompose=req.use_llm_decompose,
+        use_llm_rewrite=req.use_llm_rewrite,
     )
     d = resp.to_dict()
     return AskResponse(

@@ -364,6 +364,8 @@ class RagTools:
 
         context_n: int | None = None,
 
+        sub_queries: list[str] | None = None,
+
     ) -> tuple[str, list[str]]:
 
         if not hits:
@@ -400,7 +402,7 @@ class RagTools:
 
             system = SYSTEM_RAG
 
-        user_msg = build_user_message(query, ctx_blocks)
+        user_msg = build_user_message(query, ctx_blocks, sub_queries=sub_queries)
 
         answer = chat(system, user_msg)
 

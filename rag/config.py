@@ -111,3 +111,21 @@ PER_SOURCE_POOL = int(os.environ.get("RAG_PER_SOURCE_POOL", "60"))
 LOG_DEDUP_MAX_PER_SYSTEM = int(os.environ.get("RAG_LOG_DEDUP_MAX_PER_SYSTEM", "3"))
 # 分源合并时异源条数上限（log_heavy 时手册最多几条）
 MERGE_MAX_CROSS_SOURCE = int(os.environ.get("RAG_MERGE_MAX_CROSS_SOURCE", "1"))
+
+# Query Decomposition（原子子问题拆解）
+AGENT_LLM_DECOMPOSE = os.environ.get("AGENT_LLM_DECOMPOSE", "0").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+AGENT_DECOMPOSE_MAX_SUB_QUERIES = int(os.environ.get("AGENT_DECOMPOSE_MAX_SUB_QUERIES", "4"))
+
+# 多轮追问 Query Rewrite（上下文消解；默认规则，可选 LLM 增强）
+AGENT_LLM_REWRITE = os.environ.get("AGENT_LLM_REWRITE", "0").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+AGENT_LLM_REWRITE_HISTORY_TURNS = int(
+    os.environ.get("AGENT_LLM_REWRITE_HISTORY_TURNS", "5")
+)
